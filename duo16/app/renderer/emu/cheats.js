@@ -49,7 +49,9 @@ class CheatEngine {
     this.snes = snes;
     this.list = []; // {id, code, desc, enabled, parsed}
     this.romPatches = new Map(); // romOffset -> original byte
+    this.master = true;          // the main on/off switch; off keeps the list but applies nothing
   }
+  setMaster(on) { this.master = !!on; this.rebuild(); }
   setList(list) {
     this.list = list.map((c) => ({ ...c, parsed: parseCheatCodes(c.code, c.kind || 'auto') }));
     this.rebuild();
@@ -65,7 +67,7 @@ class CheatEngine {
     this.romPatches.clear();
     this.ramWrites = [];
     for (const c of this.list) {
-      if (!c.enabled) continue;
+      if (!this.master || !c.enabled) continue;
       for (const { addr, value } of c.parsed) {
         const off = this.romOffsetFor(addr);
         if (off >= 0) {

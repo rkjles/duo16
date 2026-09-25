@@ -56,6 +56,7 @@ function buildMenu() {
       label: 'Game',
       submenu: [
         { label: 'Pause / Resume', accelerator: 'P', registerAccelerator: false, click: () => win && win.webContents.send('menu', 'pause') },
+        { label: 'Fast-forward On / Off', click: () => win && win.webContents.send('menu', 'fast') },
         { label: 'Reset', click: () => win && win.webContents.send('menu', 'reset') },
         { type: 'separator' },
         { label: 'Save State', accelerator: 'F5', registerAccelerator: false, click: () => win && win.webContents.send('menu', 'save-state') },

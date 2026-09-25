@@ -207,7 +207,8 @@ function sanitizeCmds(c) {
   const out = [];
   for (const x of c.slice(0, 8)) {
     if (!x || typeof x !== 'object') continue;
-    if (x.k === 'rewind' || x.k === 'pause') out.push({ k: x.k, on: !!x.on });
+    if (x.k === 'rewind' || x.k === 'pause' || x.k === 'cheatsOn') out.push({ k: x.k, on: !!x.on });
+    else if (x.k === 'speed') out.push({ k: 'speed', v: Math.max(1, Math.min(4, x.v | 0)) });
     else if (x.k === 'reset') out.push({ k: 'reset' });
     else if (x.k === 'cheats' && Array.isArray(x.list)) {
       out.push({
@@ -215,7 +216,7 @@ function sanitizeCmds(c) {
         list: x.list.slice(0, 200).map((c) => ({ code: String(c.code || '').slice(0, 400), desc: String(c.desc || '').slice(0, 80), enabled: !!c.enabled, kind: ['auto', 'gg', 'par'].includes(c.kind) ? c.kind : 'auto' })),
       });
     } else if (x.k === 'settings' && x.settings && typeof x.settings === 'object') {
-      const s = x.settings; out.push({ k: 'settings', settings: { guestCheats: !!s.guestCheats, guestRewind: !!s.guestRewind, guestPause: !!s.guestPause, guestReset: !!s.guestReset } });
+      const s = x.settings; out.push({ k: 'settings', settings: { guestCheats: !!s.guestCheats, guestRewind: !!s.guestRewind, guestPause: !!s.guestPause, guestReset: !!s.guestReset, guestFast: s.guestFast !== false } });
     }
   }
   return out;

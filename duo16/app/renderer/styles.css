@@ -244,3 +244,18 @@ select#pad-select { width: 100%; }
 .pad-xref th { text-align: left; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); font-weight: 600; padding: 0 6px 4px 0; }
 .pad-xref td { padding: 3px 6px 3px 0; border-top: 1px solid var(--line); color: var(--muted); }
 .pad-xref td b { color: var(--text); }
+
+.speed-badge {
+  position: absolute; top: 10px; right: 10px; padding: 4px 10px; border-radius: 999px; line-height: 1.2;
+  background: rgba(20, 24, 33, .9); border: 1px solid var(--p1); color: var(--p1); font: 700 13px var(--mono);
+}
+.icon-btn.ff-on { background: var(--p1); border-color: var(--p1); }
+.icon-btn.ff-on svg { fill: var(--p1-ink); stroke: var(--p1-ink); }
+
+.cheats-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.switch { display: inline-flex; align-items: center; gap: 8px; background: none; border: 0; cursor: pointer; padding: 2px 0; font-size: 12px; font-weight: 600; }
+.switch .knob { width: 32px; height: 18px; border-radius: 999px; background: var(--line-2); position: relative; transition: background .15s; flex: none; }
+.switch .knob::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--text); transition: transform .15s; }
+.switch[aria-checked="true"] .knob { background: var(--good); }
+.switch[aria-checked="true"] .knob::after { transform: translateX(14px); background: #0b2a19; }
+.cheat-list.all-off li:not(.empty) { opacity: .45; }

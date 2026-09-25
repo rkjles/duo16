@@ -8,9 +8,9 @@ let session = null;
 let link = null;
 const net = { mode: 'offline', role: null, remoteRom: null, autoDelayAt: 0, lastAutoDelay: 0, syncing: false };
 let rom = null;                 // { name, crc, key, demo, data }
-let settings = { keys: {}, padMaps: {}, padChoice: '', volume: 0.8, smooth: false, delayPref: 'auto', perms: { guestCheats: true, guestRewind: true, guestPause: true, guestReset: false } };
+let settings = { keys: {}, padMaps: {}, padChoice: '', volume: 0.8, smooth: false, delayPref: 'auto', ffSpeed: 3, perms: { guestCheats: true, guestRewind: true, guestPause: true, guestReset: false, guestFast: true } };
 let currentSlot = 1;
-let fastForward = false;
+let ffHeld = false;
 let sramWritable = true, sramLastCrc = 0;
 let frameDirty = false, waitingSince = 0;
 let lastCheatVersion = -1;
@@ -313,7 +313,7 @@ async function tryRecentFor(crc) {
 function applyHostSettings() {
   settings.perms = {
     guestCheats: $('perm-cheats').checked, guestRewind: $('perm-rewind').checked,
-    guestPause: $('perm-pause').checked, guestReset: $('perm-reset').checked,
+    guestPause: $('perm-pause').checked, guestReset: $('perm-reset').checked, guestFast: $('perm-fast').checked,
   };
   saveSettings();
   if (!isGuest()) session.command({ k: 'settings', settings: settings.perms });
@@ -341,8 +341,8 @@ function updateOnlinePanel() {
   gp.hidden = net.role !== 'guest';
   if (net.role === 'guest') {
     const s = machine.settings; const can = [];
-    if (s.guestCheats) can.push('cheats'); if (s.guestRewind) can.push('rewind'); if (s.guestPause) can.push('pause'); if (s.guestReset) can.push('reset');
-    gp.textContent = can.length ? `The host lets you use: ${can.join(', ')}.` : 'The host has turned off cheats, rewind and pause for guests.';
+    if (s.guestCheats) can.push('cheats'); if (s.guestRewind) can.push('rewind'); if (s.guestPause) can.push('pause'); if (s.guestFast !== false) can.push('fast-forward'); if (s.guestReset) can.push('reset');
+    gp.textContent = can.length ? `The host lets you use: ${can.join(', ')}.` : 'The host has turned off cheats, rewind, pause and fast-forward for guests.';
   }
 }
 setInterval(() => {
@@ -369,6 +369,11 @@ function commitCheats(list, note) {
 }
 function renderCheats() {
   const ul = $('cheat-list'); ul.innerHTML = '';
+  const on = machine.cheatsOn !== false;
+  $('cheats-master').setAttribute('aria-checked', String(on));
+  $('cheats-master-text').textContent = on ? 'Cheats on' : 'Cheats off';
+  $('cheats-off-note').hidden = on || !machine.cheatList.length;
+  ul.classList.toggle('all-off', !on);
   const list = machine.cheatList;
   $('cheat-lock').hidden = canCheat();
   if (!list.length) { const li = document.createElement('li'); li.className = 'empty'; li.textContent = 'No cheats yet'; ul.appendChild(li); return; }
@@ -495,7 +500,7 @@ function renderBindings() {
 }
 function renderHints() {
   const k = (id) => `<b>${input.keyName(input.keys[id])}</b>`;
-  $('hints').innerHTML = `<span>${k('rewind')} hold to rewind</span><span>${k('pause')} pause</span><span>${k('save')} / ${k('load')} save / load state (slot <b id="hint-slot">${currentSlot}</b>)</span><span>${k('fast')} fast-forward</span><span>Controller: arrows, ${k('b')} B, ${k('a')} A, ${k('y')} Y, ${k('x')} X</span>`;
+  $('hints').innerHTML = `<span>${k('rewind')} hold to rewind</span><span>${k('pause')} pause</span><span>${k('save')} / ${k('load')} save / load state (slot <b id="hint-slot">${currentSlot}</b>)</span><span>${k('fast')} hold to fast-forward</span><span>Controller: arrows, ${k('b')} B, ${k('a')} A, ${k('y')} Y, ${k('x')} X</span>`;
   $('rewind-key').textContent = input.keyName(input.keys.rewind);
 }
 
@@ -512,12 +517,25 @@ input.onHotkey = (id, pressed) => {
       break;
     case 'pause': if (pressed) togglePause(); break;
     case 'fast':
-      if (pressed && session.role !== 'solo') { toast('Fast-forward is off during online play.'); return; }
-      fastForward = pressed; break;
+      if (pressed) {
+        if (!canFast()) return;
+        ffHeld = true; session.command({ k: 'speed', v: settings.ffSpeed });
+      } else if (ffHeld) { ffHeld = false; session.command({ k: 'speed', v: 1 }); }
+      break;
     case 'save': if (pressed) saveState(currentSlot); break;
     case 'load': if (pressed) loadState(currentSlot); break;
   }
 };
+function canFast() {
+  if (isGuest() && machine.settings.guestFast === false) { toast('The host has turned off fast-forward for guests.'); return false; }
+  return true;
+}
+function toggleFast() {
+  if (!rom) return;
+  if (machine.speed > 1) { session.command({ k: 'speed', v: 1 }); return; }
+  if (!canFast()) return;
+  session.command({ k: 'speed', v: settings.ffSpeed });
+}
 function togglePause() {
   if (!rom) return;
   if (isGuest() && !machine.settings.guestPause) { toast('The host has turned off pause for guests.'); return; }
@@ -549,7 +567,6 @@ function tick() {
     waitingSince = 0;
     acc -= period; ran++;
     afterFrame(true);
-    if (fastForward && session.role === 'solo') for (let i = 0; i < 3; i++) if (session.step()) afterFrame(false);
   }
   if (session.role !== 'solo' && session.lead() > session.delay + 2 && session.step()) afterFrame(true);
 }
@@ -570,6 +587,11 @@ function draw() {
     if (rom && !rom.demo && !isGuest()) window.duo.saveCheats(rom.key, machine.cheatList);
   }
   $('btn-pause').classList.toggle('on', !!machine.paused);
+  const fast = machine.speed > 1;
+  $('btn-fast').classList.toggle('ff-on', fast); $('btn-fast').setAttribute('aria-pressed', String(fast));
+  const badge = $('speed-badge'); const showBadge = fast && !machine.rewinding && !machine.paused && !!rom;
+  if (badge.hidden === showBadge) badge.hidden = !showBadge;
+  if (showBadge && badge.textContent !== machine.speed + '×') badge.textContent = machine.speed + '×';
   if (!frameDirty || !machine.snes.cart) return;
   frameDirty = false;
   const h = machine.snes.ppu.frameHeight;
@@ -597,7 +619,10 @@ const ICONS = {
 function updateOverlay() {
   let kind = null, text = '';
   if (net.syncing) { kind = 'sync'; text = net.role === 'guest' ? 'Syncing with the host…' : 'Syncing with your friend…'; }
-  else if (machine.rewinding) { kind = 'rewind'; text = `Rewinding${machine.rewindHeldBy >= 0 && session.role !== 'solo' ? ` · Player ${machine.rewindHeldBy + 1}` : ''}`; }
+  else if (machine.rewinding) {
+    const back = Math.round(machine.rewindSecondsBack());
+    kind = 'rewind'; text = `Rewinding${machine.rewindHeldBy >= 0 && session.role !== 'solo' ? ` · Player ${machine.rewindHeldBy + 1}` : ''} · ${Math.floor(back / 60)}:${String(back % 60).padStart(2, '0')} back`;
+  }
   else if (machine.paused && rom) { kind = 'pause'; text = 'Paused'; }
   else if (session && session.role !== 'solo' && waitingSince && performance.now() - waitingSince > 400) { kind = 'wait'; text = `Waiting for Player ${net.role === 'host' ? 2 : 1}…`; }
   const ov = $('overlay');
@@ -624,7 +649,7 @@ function drawLogo() {
 function bind() {
   $('btn-open').onclick = openRomDialog; $('w-open').onclick = openRomDialog;
   $('btn-demo').onclick = () => loadDemo(); $('w-demo').onclick = () => loadDemo();
-  $('btn-pause').onclick = togglePause; $('btn-reset').onclick = resetGame;
+  $('btn-pause').onclick = togglePause; $('btn-reset').onclick = resetGame; $('btn-fast').onclick = toggleFast;
   for (const t of document.querySelectorAll('.tab')) t.onclick = () => {
     document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('active', x === t));
     for (const p of document.querySelectorAll('.panel')) p.hidden = p.id !== 'panel-' + t.dataset.tab;
@@ -641,10 +666,16 @@ function bind() {
   $('d-cancel').onclick = () => { closeLink(); showView('idle'); $('d-host-info').textContent = ''; };
   $('o-leave').onclick = leaveSession;
   $('rom-mismatch-open').onclick = openRomDialog;
-  for (const id of ['perm-cheats', 'perm-rewind', 'perm-pause', 'perm-reset']) $(id).onchange = applyHostSettings;
+  for (const id of ['perm-cheats', 'perm-rewind', 'perm-pause', 'perm-reset', 'perm-fast']) $(id).onchange = applyHostSettings;
+  $('ff-speed').onchange = (e) => { settings.ffSpeed = +e.target.value; saveSettings(); if (machine.speed > 1) session.command({ k: 'speed', v: settings.ffSpeed }); };
   $('delay-select').onchange = (e) => {
     settings.delayPref = e.target.value; saveSettings();
     if (myRole() === 'host') { session.delay = chosenDelay(); session.sendSync(`Input delay set to ${session.delay} frames`); }
+  };
+  $('cheats-master').onclick = () => {
+    if (!rom) return;
+    if (!canCheat()) { toast('The host has turned off cheats for guests.'); return; }
+    session.command({ k: 'cheatsOn', on: machine.cheatsOn === false });
   };
   $('lib-find').onclick = libFind;
   $('lib-game').onchange = (e) => libLoad(e.target.value, false);
@@ -681,6 +712,7 @@ function bind() {
     if (m === 'open-rom') openRomDialog();
     else if (m === 'demo') loadDemo();
     else if (m === 'pause') togglePause();
+    else if (m === 'fast') toggleFast();
     else if (m === 'reset') resetGame();
     else if (m === 'save-state') saveState(currentSlot);
     else if (m === 'load-state') loadState(currentSlot);
@@ -783,7 +815,8 @@ async function init() {
   $('opt-smooth').checked = !!settings.smooth; screen.classList.toggle('smooth', !!settings.smooth);
   $('delay-select').value = settings.delayPref;
   $('perm-cheats').checked = settings.perms.guestCheats; $('perm-rewind').checked = settings.perms.guestRewind;
-  $('perm-pause').checked = settings.perms.guestPause; $('perm-reset').checked = settings.perms.guestReset;
+  $('perm-pause').checked = settings.perms.guestPause; $('perm-reset').checked = settings.perms.guestReset; $('perm-fast').checked = settings.perms.guestFast !== false;
+  $('ff-speed').value = String(settings.ffSpeed || 3);
   bind(); renderBindings(); renderHints(); refreshSlots(); updatePadStatus(); renderCheats();
   showView('idle');
   const recents = await window.duo.recentRoms();

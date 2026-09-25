@@ -111,3 +111,56 @@ function stateChecksum(snes) {
   mix([c.a, c.x, c.y, c.s, c.d, c.dbr, c.pbr, c.pc, c.getP(), snes.vc, snes.hc & 0xFFFF]);
   return h >>> 0;
 }
+
+// ---- compact differences between two snapshots (for a long rewind history) ----
+// Large arrays are stored as XOR-against-base with runs of unchanged bytes skipped.
+const DELTA_MIN = 2048;
+function bytesOf(v) { return new Uint8Array(v.buffer, v.byteOffset, v.byteLength); }
+function xorRle(cur, base) {
+  const n = cur.length; const out = []; let i = 0; let chunk = new Uint8Array(4096); let len = 0;
+  const put = (b) => { if (len === chunk.length) { out.push(chunk); chunk = new Uint8Array(4096); len = 0; } chunk[len++] = b; };
+  const putVar = (v) => { while (v >= 0x80) { put((v & 0x7F) | 0x80); v >>>= 7; } put(v); };
+  while (i < n) {
+    let z = i; while (z < n && cur[z] === base[z]) z++;
+    putVar(z - i); i = z;
+    if (i >= n) { putVar(0); break; }
+    let e = i;
+    // a literal run ends at the first stretch of 4 unchanged bytes
+    while (e < n) { if (cur[e] === base[e] && e + 3 < n && cur[e + 1] === base[e + 1] && cur[e + 2] === base[e + 2] && cur[e + 3] === base[e + 3]) break; e++; }
+    putVar(e - i);
+    for (let k = i; k < e; k++) put(cur[k] ^ base[k]);
+    i = e;
+  }
+  const total = out.length * 4096 + len; const res = new Uint8Array(total); let o = 0;
+  for (const c of out) { res.set(c, o); o += 4096; }
+  res.set(chunk.subarray(0, len), o);
+  return res;
+}
+function xorRleDecode(enc, base) {
+  const out = base.slice(); let p = 0, i = 0;
+  const getVar = () => { let v = 0, sh = 0, b; do { b = enc[p++]; v |= (b & 0x7F) << sh; sh += 7; } while (b & 0x80); return v >>> 0; };
+  while (p < enc.length) {
+    i += getVar();
+    if (p >= enc.length) break;
+    const lit = getVar();
+    for (let k = 0; k < lit; k++, i++) out[i] ^= enc[p++];
+  }
+  return out;
+}
+function deltaEncodeState(cur, base) {
+  if (ArrayBuffer.isView(cur)) {
+    if (cur.byteLength >= DELTA_MIN && base && ArrayBuffer.isView(base) && base.byteLength === cur.byteLength && base.constructor === cur.constructor)
+      return { __x: xorRle(bytesOf(cur), bytesOf(base)), t: cur.constructor.name };
+    return cur;
+  }
+  if (Array.isArray(cur)) return cur.map((v, i) => deltaEncodeState(v, base ? base[i] : undefined));
+  if (cur && typeof cur === 'object') { const o = {}; for (const k of Object.keys(cur)) o[k] = deltaEncodeState(cur[k], base ? base[k] : undefined); return o; }
+  return cur;
+}
+function deltaDecodeState(d, base) {
+  if (d && d.__x) { const bytes = xorRleDecode(d.__x, bytesOf(base)); return new TA_TYPES[d.t](bytes.buffer); }
+  if (ArrayBuffer.isView(d)) return d;
+  if (Array.isArray(d)) return d.map((v, i) => deltaDecodeState(v, base ? base[i] : undefined));
+  if (d && typeof d === 'object') { const o = {}; for (const k of Object.keys(d)) o[k] = deltaDecodeState(d[k], base ? base[k] : undefined); return o; }
+  return d;
+}

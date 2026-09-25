@@ -34,9 +34,14 @@ for (let step = 0; step < seconds * 60; step++) {
   while (queue.length && queue[0].at <= clock) queue.shift().fn();
   if (step % 20 === 0) { padA = [0, 0x800, 0x400, 0x1000][Math.floor(rand() * 4)]; padB = [0, 0x800, 0x400][Math.floor(rand() * 3)]; }
   if (step === 900 && !cheatDone) { cheatDone = true; sB.command({ k: 'cheats', note: 'added a cheat', list: [{ code: '7E000807', enabled: true }] }); }
+  if (step === 1100) sA.command({ k: 'cheatsOn', on: false });
+  if (step === 1300) { console.log('cheats off -> engine writes:', mA.cheats.ramWrites.length, mB.cheats.ramWrites.length, '| list kept:', mA.cheatList.length, mB.cheatList.length); sB.command({ k: 'cheatsOn', on: true }); }
+  if (step === 1450) console.log('cheats back on -> engine writes:', mA.cheats.ramWrites.length, mB.cheats.ramWrites.length);
   if (step === 1500) sA.command({ k: 'rewind', on: true });
   if (step === 1560) sA.command({ k: 'rewind', on: false });
   if (step === 1200 && process.env.CORRUPT) mB.snes.wram[0x1234] ^= 0xFF;
+  if (step === 1700) sB.command({ k: 'speed', v: 3 });
+  if (step === 1850) sB.command({ k: 'speed', v: 1 });
   if (step === 2000) sB.command({ k: 'pause', on: true });
   if (step === 2060) sB.command({ k: 'pause', on: false });
   for (const s of [sA, sB]) {

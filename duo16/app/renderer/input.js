@@ -9,7 +9,7 @@ const BUTTONS = [
 ];
 const HOTKEYS = [
   { id: 'rewind', label: 'Rewind (hold)' }, { id: 'pause', label: 'Pause' },
-  { id: 'fast', label: 'Fast-forward (hold, solo only)' }, { id: 'save', label: 'Save state' }, { id: 'load', label: 'Load state' },
+  { id: 'fast', label: 'Fast-forward (hold)' }, { id: 'save', label: 'Save state' }, { id: 'load', label: 'Load state' },
 ];
 const DEFAULT_KEYS = {
   up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight',
