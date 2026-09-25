@@ -87,10 +87,10 @@ The game starts for both players from the host's current moment, including the h
 
 | Action | Key |
 |---|---|
-| Rewind (hold) | Backspace (gamepad: left trigger or left-stick click). Goes back up to 3 minutes and speeds up the longer you hold. |
+| Rewind (hold) | Backspace. Controller: Select + L, or the left trigger on Xbox/PlayStation controllers. Goes back up to 3 minutes and speeds up the longer you hold. |
 | Pause | P |
 | Save / load state | F5 / F7 (choose slot with 1–4) |
-| Fast-forward | Hold Tab, or click the ⏩ button to switch it on and off. Choose 2×, 3× or 4× in the Controls tab. |
+| Fast-forward | Hold Tab, or click the ⏩ button to switch it on and off. Controller: hold Select + R, or the right trigger on Xbox/PlayStation controllers. Choose 2×, 3× or 4× in the Controls tab. |
 
 Change any of these in the **Controls** tab. In offline play, a second gamepad controls Player 2.
 
@@ -100,6 +100,8 @@ Change any of these in the **Controls** tab. In offline play, a second gamepad c
 3. If a button is wrong, click it in the list, then press the button you want on the controller. Duo16 remembers the layout for that controller.
 
 The **Controls** tab shows a diagram of the SNES buttons that lights up as you press them, plus a table of which Xbox and PlayStation buttons match SNES A, B, X and Y.
+
+You can also set rewind and fast-forward to any spare controller button there. While Select + L or Select + R is held, the game doesn't see those buttons; switch the shortcuts off in the Controls tab if a game needs that combination.
 
 Xbox and PlayStation controllers work without setup. Other USB controllers, including SNES-style pads, get a best-guess layout that you can fix in a few clicks. During online play, each player sets up their own controller on their own computer.
 

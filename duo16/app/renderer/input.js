@@ -27,14 +27,14 @@ const STANDARD_MAP = {
   b: [std(0)], a: [std(1)], y: [std(2)], x: [std(3)], l: [std(4)], r: [std(5)], select: [std(8)], start: [std(9)],
   up: [std(12), { t: 'a', i: 1, d: -1, r: 0 }], down: [std(13), { t: 'a', i: 1, d: 1, r: 0 }],
   left: [std(14), { t: 'a', i: 0, d: -1, r: 0 }], right: [std(15), { t: 'a', i: 0, d: 1, r: 0 }],
-  rewind: [std(6), std(10)],
+  rewind: [std(6), std(10)], fast: [std(7), std(11)],
 };
 // Best guess for other USB controllers (most USB SNES-style pads use this order)
 const GENERIC_MAP = {
   x: [std(0)], a: [std(1)], b: [std(2)], y: [std(3)], l: [std(4)], r: [std(5)], select: [std(8)], start: [std(9)],
   up: [{ t: 'a', i: 1, d: -1, r: 0 }, { t: 'h', i: 9, dir: 'up' }], down: [{ t: 'a', i: 1, d: 1, r: 0 }, { t: 'h', i: 9, dir: 'down' }],
   left: [{ t: 'a', i: 0, d: -1, r: 0 }, { t: 'h', i: 9, dir: 'left' }], right: [{ t: 'a', i: 0, d: 1, r: 0 }, { t: 'h', i: 9, dir: 'right' }],
-  rewind: [],
+  rewind: [], fast: [],
 };
 const HAT_DIRS = [['up'], ['up', 'right'], ['right'], ['down', 'right'], ['down'], ['down', 'left'], ['left'], ['up', 'left']];
 function hatDirs(v) {
@@ -50,7 +50,7 @@ class Input {
     this.onHotkey = null; // (id, pressed) => void
     this.capture = null;  // (code) => void when rebinding
     this.padHot = {};
-    this.padMaps = {}; this.padChoice = ''; this.padCapture = null;
+    this.padMaps = {}; this.padChoice = ''; this.padCapture = null; this.combos = true;
     addEventListener('keydown', (e) => this.key(e, true));
     addEventListener('keyup', (e) => this.key(e, false));
     addEventListener('blur', () => { this.down.clear(); for (const id of Object.keys(this.padHot)) if (this.padHot[id]) { this.padHot[id] = false; this.onHotkey?.(id, false); } });
@@ -74,7 +74,7 @@ class Input {
   setPadMaps(maps) { this.padMaps = maps || {}; }
   setPadChoice(id) { this.padChoice = id || ''; }
   defaultMap(gp) { return gp && gp.mapping === 'standard' ? STANDARD_MAP : GENERIC_MAP; }
-  mapFor(gp) { return (gp && this.padMaps && this.padMaps[gp.id]) || this.defaultMap(gp); }
+  mapFor(gp) { const d = this.defaultMap(gp); const c = gp && this.padMaps && this.padMaps[gp.id]; return c ? { ...d, ...c } : d; }
   hasCustomMap(gp) { return !!(gp && this.padMaps && this.padMaps[gp.id]); }
   // The controller for this computer's player: the one chosen in Controls, else the first one connected
   p1Pad() {
@@ -92,16 +92,27 @@ class Input {
     const list = this.mapFor(gp)[id];
     return !!(list && list.some((bnd) => this.bindingActive(gp, bnd)));
   }
+  // Select + L / Select + R shortcuts (for controllers without spare buttons)
+  combo(gp) {
+    if (!this.combos || !gp || !this.isDown(gp, 'select')) return null;
+    const l = this.isDown(gp, 'l'), r = this.isDown(gp, 'r');
+    return l || r ? { rewind: l, fast: r } : null;
+  }
   readPad(gp) {
     if (!gp) return 0;
     let bits = 0;
     for (const b of BUTTONS) if (this.isDown(gp, b.id)) bits |= b.bit;
+    // while a shortcut is held, the game doesn't see Select, L or R
+    if (this.combo(gp)) bits &= ~(0x2000 | 0x0020 | 0x0010);
     return bits;
   }
   pollPadHotkeys(gp) {
     if (!gp || this.padCapture) return;
-    const on = this.isDown(gp, 'rewind');
-    if (!!this.padHot.rewind !== on) { this.padHot.rewind = on; this.onHotkey?.('rewind', on); }
+    const c = this.combo(gp);
+    for (const id of ['rewind', 'fast']) {
+      const on = this.isDown(gp, id) || !!(c && c[id]);
+      if (!!this.padHot[id] !== on) { this.padHot[id] = on; this.onHotkey?.(id, on); }
+    }
   }
   // ---- binding a controller button: call startPadCapture(cb); cb(binding|null) on the next press ----
   startPadCapture(cb) {

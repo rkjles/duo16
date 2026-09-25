@@ -8,7 +8,7 @@ let session = null;
 let link = null;
 const net = { mode: 'offline', role: null, remoteRom: null, autoDelayAt: 0, lastAutoDelay: 0, syncing: false };
 let rom = null;                 // { name, crc, key, demo, data }
-let settings = { keys: {}, padMaps: {}, padChoice: '', volume: 0.8, smooth: false, delayPref: 'auto', ffSpeed: 3, perms: { guestCheats: true, guestRewind: true, guestPause: true, guestReset: false, guestFast: true } };
+let settings = { keys: {}, padMaps: {}, padChoice: '', volume: 0.8, smooth: false, delayPref: 'auto', ffSpeed: 3, padCombos: true, perms: { guestCheats: true, guestRewind: true, guestPause: true, guestReset: false, guestFast: true } };
 let currentSlot = 1;
 let ffHeld = false;
 let sramWritable = true, sramLastCrc = 0;
@@ -724,6 +724,7 @@ function bind() {
   addEventListener('gamepaddisconnected', (e) => { toast(`Controller unplugged: ${padName(e.gamepad)}`); updatePadStatus(); });
   setInterval(() => { const k = input.pads().map((p) => p.index + ':' + p.id).join('|'); if (k !== padListKey) updatePadStatus(); }, 1000);
   $('pad-select').onchange = (e) => { settings.padChoice = e.target.value; input.setPadChoice(settings.padChoice); saveSettings(); updatePadStatus(); };
+  $('pad-combos').onchange = (e) => { settings.padCombos = e.target.checked; input.combos = e.target.checked; saveSettings(); };
   $('pad-reset').onclick = () => {
     const gp = input.p1Pad(); if (!gp) return;
     const m = { ...settings.padMaps }; delete m[gp.id]; settings.padMaps = m;
@@ -759,7 +760,7 @@ function renderPadBindings() {
   const host = $('bind-pad'); host.innerHTML = '';
   const gp = input.p1Pad(); if (!gp) return;
   const map = input.mapFor(gp);
-  for (const b of [...BUTTONS, { id: 'rewind', label: 'Rewind (hold)' }]) {
+  for (const b of [...BUTTONS, { id: 'rewind', label: 'Rewind' }, { id: 'fast', label: 'Fast-fwd' }]) {
     const d = document.createElement('div'); d.className = 'bind';
     d.innerHTML = '<span></span><button></button>';
     d.querySelector('span').textContent = b.label;
@@ -809,7 +810,8 @@ async function init() {
   const saved = await window.duo.loadSettings();
   if (saved) settings = { ...settings, ...saved, perms: { ...settings.perms, ...(saved.perms || {}) } };
   input.setKeys(settings.keys);
-  input.setPadMaps(settings.padMaps); input.setPadChoice(settings.padChoice);
+  input.setPadMaps(settings.padMaps); input.setPadChoice(settings.padChoice); input.combos = settings.padCombos !== false;
+  $('pad-combos').checked = input.combos;
   audio.setVolume(settings.volume);
   $('volume').value = settings.volume;
   $('opt-smooth').checked = !!settings.smooth; screen.classList.toggle('smooth', !!settings.smooth);

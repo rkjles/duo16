@@ -259,3 +259,5 @@ select#pad-select { width: 100%; }
 .switch[aria-checked="true"] .knob { background: var(--good); }
 .switch[aria-checked="true"] .knob::after { transform: translateX(14px); background: #0b2a19; }
 .cheat-list.all-off li:not(.empty) { opacity: .45; }
+.pad-shortcuts { display: grid; gap: 6px; }
+.pad-shortcuts b { font-weight: 600; }
