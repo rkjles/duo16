@@ -14,38 +14,71 @@ jobs:
     runs-on: windows-latest
     defaults:
       run:
-        working-directory: app
+        shell: bash
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
-      - run: npm install
-      - run: npx electron-builder --win --x64 --publish never
+          node-version: 22
+      - name: Find the app folder
+        id: find
+        run: |
+          pkg=$(grep -rl --include=package.json '"electron-builder"' . | grep -v node_modules | head -n 1 || true)
+          if [ -z "$pkg" ]; then
+            echo "::error::Could not find the Duo16 app (a package.json that mentions electron-builder). Files in your repository:"
+            find . -maxdepth 3 -not -path './.git*' | sort
+            exit 1
+          fi
+          dir=$(dirname "$pkg")
+          echo "Found the app in: $dir"
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+      - name: Build
+        working-directory: ${{ steps.find.outputs.dir }}
+        run: |
+          npm install
+          npx electron-builder --win --x64 --publish never
       - uses: actions/upload-artifact@v4
         with:
           name: Duo16-Windows
-          path: |
-            app/dist/*.exe
+          path: ${{ steps.find.outputs.dir }}/dist/*.exe
           if-no-files-found: error
 
   mac:
     runs-on: macos-latest
-    defaults:
-      run:
-        working-directory: app
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
-      - run: npm install
-      - run: npx electron-builder --mac --universal --publish never
-      - run: bash scripts/package-mac.sh
+          node-version: 22
+      - name: Find the app folder
+        id: find
+        run: |
+          pkg=$(grep -rl --include=package.json '"electron-builder"' . | grep -v node_modules | head -n 1 || true)
+          if [ -z "$pkg" ]; then
+            echo "::error::Could not find the Duo16 app (a package.json that mentions electron-builder). Files in your repository:"
+            find . -maxdepth 3 -not -path './.git*' | sort
+            exit 1
+          fi
+          dir=$(dirname "$pkg")
+          echo "Found the app in: $dir"
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+      - name: Build
+        working-directory: ${{ steps.find.outputs.dir }}
+        run: |
+          npm install
+          npx electron-builder --mac --universal --publish never
+          APP=$(ls -d dist/mac-universal/*.app | head -n 1)
+          codesign --force --deep --sign - "$APP"
+          mkdir -p dist/release
+          ditto -c -k --sequesterRsrc --keepParent "$APP" dist/release/Duo16-mac.zip
+          STAGE=$(mktemp -d)
+          cp -R "$APP" "$STAGE/"
+          ln -s /Applications "$STAGE/Applications"
+          hdiutil create -volname Duo16 -srcfolder "$STAGE" -ov -format UDZO dist/release/Duo16-mac.dmg
       - uses: actions/upload-artifact@v4
         with:
           name: Duo16-Mac
-          path: app/dist/release/*
+          path: ${{ steps.find.outputs.dir }}/dist/release/*
           if-no-files-found: error
 
   release:
