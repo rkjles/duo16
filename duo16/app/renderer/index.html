@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' blob:; worker-src blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' blob:">
+  <title>Duo16</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="bar">
+    <canvas id="logo" class="logo" width="84" height="20" aria-label="Duo16"></canvas>
+    <div class="bar-group">
+      <button id="btn-open" class="btn">Open ROM</button>
+      <button id="btn-demo" class="btn ghost" title="A small two-player game built into Duo16">Demo</button>
+    </div>
+    <div class="now-playing">
+      <span class="np-label">Playing</span>
+      <span id="game-title" class="np-title">Nothing yet</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="bar-group">
+      <button id="btn-pause" class="icon-btn" title="Pause (P)" aria-label="Pause">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="2.5" width="3" height="11" rx="1"/><rect x="9.5" y="2.5" width="3" height="11" rx="1"/></svg>
+      </button>
+      <button id="btn-reset" class="icon-btn" title="Reset game" aria-label="Reset">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8a5 5 0 1 0 1.6-3.7" fill="none" stroke-width="1.8" stroke-linecap="round"/><path d="M2.5 2.2v3.6h3.6" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+    <div id="net-pill" class="pill offline"><span class="dot"></span><span id="net-pill-text">Offline</span></div>
+  </header>
+
+  <main class="layout">
+    <section class="stage" id="stage">
+      <div class="screen-wrap" id="screen-wrap">
+        <canvas id="screen" width="256" height="224"></canvas>
+        <div id="overlay" class="overlay" hidden>
+          <div class="overlay-card">
+            <svg id="overlay-icon" viewBox="0 0 24 24" aria-hidden="true"></svg>
+            <span id="overlay-text"></span>
+          </div>
+        </div>
+      </div>
+
+      <div id="welcome" class="welcome">
+        <div class="welcome-card">
+          <h1>Play Super NES games with a friend, online.</h1>
+          <p>Open a ROM file you own, or try the built-in two-player demo. When you're ready, host a game from the <b>Online</b> tab and send your friend the invite code.</p>
+          <div class="welcome-actions">
+            <button id="w-open" class="btn primary">Open ROM</button>
+            <button id="w-demo" class="btn">Play the demo</button>
+          </div>
+          <div id="recent-wrap" hidden>
+            <div class="label">Recent</div>
+            <ul id="recent" class="recent"></ul>
+          </div>
+        </div>
+      </div>
+
+      <div id="toasts" class="toasts" aria-live="polite"></div>
+    </section>
+
+    <aside class="side">
+      <nav class="tabs" role="tablist">
+        <button class="tab active" data-tab="online" role="tab">Online</button>
+        <button class="tab" data-tab="cheats" role="tab">Cheats</button>
+        <button class="tab" data-tab="saves" role="tab">Saves</button>
+        <button class="tab" data-tab="controls" role="tab">Controls</button>
+      </nav>
+
+      <!-- ONLINE -->
+      <section class="panel" id="panel-online">
+        <div class="view" data-view="idle">
+          <p class="lead">Two players, two computers. You each run the game and Duo16 keeps them in step.</p>
+          <div class="choice-grid">
+            <button id="o-host" class="choice p1">
+              <span class="choice-tag">Player 1</span>
+              <span class="choice-title">Host a game</span>
+              <span class="choice-sub">You pick the game and settings</span>
+            </button>
+            <button id="o-join" class="choice p2">
+              <span class="choice-tag">Player 2</span>
+              <span class="choice-title">Join a friend</span>
+              <span class="choice-sub">Paste the invite code they send you</span>
+            </button>
+          </div>
+          <button id="o-direct" class="linkish">Connect by IP address instead (same network or VPN)</button>
+        </div>
+
+        <div class="view" data-view="host-code" hidden>
+          <ol class="steps">
+            <li>
+              <div class="step-title">Send your friend this invite code</div>
+              <div class="code-box"><textarea id="host-invite" readonly rows="4" spellcheck="false">Creating code…</textarea>
+                <button class="btn small" id="host-copy">Copy</button></div>
+            </li>
+            <li>
+              <div class="step-title">Paste the reply code they send back</div>
+              <textarea id="host-reply" rows="3" spellcheck="false" placeholder="DUO16-…"></textarea>
+              <div class="row"><button class="btn primary" id="host-connect">Connect</button><button class="btn ghost" id="host-cancel">Cancel</button></div>
+            </li>
+          </ol>
+        </div>
+
+        <div class="view" data-view="join-code" hidden>
+          <ol class="steps">
+            <li>
+              <div class="step-title">Paste the invite code from the host</div>
+              <textarea id="join-invite" rows="4" spellcheck="false" placeholder="DUO16-…"></textarea>
+              <div class="row"><button class="btn primary" id="join-make">Create reply code</button><button class="btn ghost" id="join-cancel">Cancel</button></div>
+            </li>
+            <li id="join-step2" class="dim">
+              <div class="step-title">Send this reply code back to the host</div>
+              <div class="code-box"><textarea id="join-reply" readonly rows="4" spellcheck="false"></textarea>
+                <button class="btn small" id="join-copy" disabled>Copy</button></div>
+              <p class="note">You'll connect as soon as the host pastes it.</p>
+            </li>
+          </ol>
+        </div>
+
+        <div class="view" data-view="direct" hidden>
+          <p class="lead">For computers on the same network, or connected through a VPN like Tailscale, ZeroTier or Radmin VPN.</p>
+          <div class="split">
+            <div class="box">
+              <div class="step-title">Host</div>
+              <label class="field"><span>Port</span><input id="d-port" type="number" value="47016" min="1024" max="65535"></label>
+              <button class="btn primary" id="d-host">Start hosting</button>
+              <p class="note" id="d-host-info"></p>
+            </div>
+            <div class="box">
+              <div class="step-title">Join</div>
+              <label class="field"><span>Host address</span><input id="d-addr" type="text" placeholder="192.168.1.20" spellcheck="false"></label>
+              <label class="field"><span>Port</span><input id="d-port2" type="number" value="47016" min="1" max="65535"></label>
+              <button class="btn" id="d-join">Connect</button>
+            </div>
+          </div>
+          <button class="btn ghost" id="d-cancel">Back</button>
+        </div>
+
+        <div class="view" data-view="connected" hidden>
+          <div class="players">
+            <div class="player p1"><span class="badge">P1</span><span class="who" id="p1-who">Host</span><span class="meta" id="p1-meta"></span></div>
+            <div class="player p2"><span class="badge">P2</span><span class="who" id="p2-who">Guest</span><span class="meta" id="p2-meta"></span></div>
+          </div>
+          <div id="rom-mismatch" class="callout" hidden>
+            <div id="rom-mismatch-text"></div>
+            <button class="btn primary small" id="rom-mismatch-open">Open ROM</button>
+          </div>
+          <dl class="stats">
+            <div><dt>Ping</dt><dd id="st-ping">–</dd></div>
+            <div><dt>Input delay</dt><dd id="st-delay">–</dd></div>
+            <div><dt>Sync</dt><dd id="st-sync">–</dd></div>
+          </dl>
+          <div class="box" id="host-settings">
+            <div class="step-title">Host settings</div>
+            <label class="field inline"><span>Input delay</span>
+              <select id="delay-select">
+                <option value="auto">Auto (from ping)</option>
+                <option value="1">1 frame</option><option value="2">2 frames</option><option value="3">3 frames</option>
+                <option value="4">4 frames</option><option value="5">5 frames</option><option value="6">6 frames</option>
+                <option value="7">7 frames</option><option value="8">8 frames</option>
+              </select>
+            </label>
+            <div class="toggle-list">
+              <label class="toggle"><input type="checkbox" id="perm-cheats" checked><span>Guest can use cheats</span></label>
+              <label class="toggle"><input type="checkbox" id="perm-rewind" checked><span>Guest can rewind</span></label>
+              <label class="toggle"><input type="checkbox" id="perm-pause" checked><span>Guest can pause</span></label>
+              <label class="toggle"><input type="checkbox" id="perm-reset"><span>Guest can reset</span></label>
+            </div>
+          </div>
+          <p class="note" id="guest-perms" hidden></p>
+          <button class="btn ghost" id="o-leave">Leave session</button>
+        </div>
+      </section>
+
+      <!-- CHEATS -->
+      <section class="panel" id="panel-cheats" hidden>
+        <p class="note" id="cheat-lock" hidden>The host has turned off cheats for guests.</p>
+        <form id="cheat-form" class="cheat-form" autocomplete="off">
+          <label class="field"><span>Code</span><input id="cheat-code" class="mono" placeholder="C9C8-6FAD or 7E0DBE05" spellcheck="false"></label>
+          <label class="field"><span>What it does</span><input id="cheat-desc" placeholder="Infinite lives"></label>
+          <div class="row">
+            <select id="cheat-kind" aria-label="Code type">
+              <option value="auto">Detect type</option><option value="gg">Game Genie</option><option value="par">Pro Action Replay</option>
+            </select>
+            <button class="btn primary" type="submit">Add cheat</button>
+          </div>
+          <div class="decode" id="cheat-decode"></div>
+        </form>
+        <ul id="cheat-list" class="cheat-list"></ul>
+        <p class="note">In online play, cheats switch on at the same frame for both players.</p>
+      </section>
+
+      <!-- SAVES -->
+      <section class="panel" id="panel-saves" hidden>
+        <p class="note" id="saves-note">Save states capture the exact moment. In-game saves (battery saves) are kept automatically.</p>
+        <ul class="slots" id="slots"></ul>
+        <div class="box">
+          <div class="step-title">Rewind</div>
+          <p class="note">Hold <kbd id="rewind-key">Backspace</kbd> to go back up to 45 seconds. Online, everyone rewinds together.</p>
+        </div>
+      </section>
+
+      <!-- CONTROLS -->
+      <section class="panel" id="panel-controls" hidden>
+        <div class="box">
+          <div class="step-title">Controller</div>
+          <label class="field"><span>Your controller</span><select id="pad-select"></select></label>
+          <p class="note" id="pad-status">No controller detected. Plug it in and press any button on it.</p>
+          <div class="pad-live" id="pad-live" aria-label="Buttons you are pressing right now"></div>
+          <div id="pad-setup">
+            <p class="note">If a button does the wrong thing, click it below, then press the button you want on your controller.</p>
+            <div class="bind-grid" id="bind-pad"></div>
+            <div class="row"><button class="btn ghost small" id="pad-reset">Reset controller buttons</button></div>
+          </div>
+        </div>
+        <div class="step-title">Keyboard</div>
+        <div class="bind-grid" id="bind-buttons"></div>
+        <div class="step-title">Shortcuts</div>
+        <div class="bind-grid" id="bind-hotkeys"></div>
+        <div class="row"><button class="btn ghost small" id="bind-reset">Restore defaults</button></div>
+        <label class="field"><span>Volume</span><input id="volume" type="range" min="0" max="1" step="0.05" value="0.8"></label>
+        <label class="toggle"><input type="checkbox" id="opt-smooth"><span>Smooth pixels</span></label>
+      </section>
+    </aside>
+  </main>
+
+  <footer class="hints" id="hints"></footer>
+
+  <script src="emu/cpu.js"></script>
+  <script src="emu/ppu.js"></script>
+  <script src="emu/apu.js"></script>
+  <script src="emu/snes.js"></script>
+  <script src="emu/state.js"></script>
+  <script src="emu/cheats.js"></script>
+  <script src="emu/machine.js"></script>
+  <script src="emu/session.js"></script>
+  <script src="demo-rom.js"></script>
+  <script src="net.js"></script>
+  <script src="input.js"></script>
+  <script src="audio.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

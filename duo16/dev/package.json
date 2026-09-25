@@ -1,0 +1,9 @@
+{
+  "name": "duo16-dev",
+  "private": true,
+  "description": "Tests and build tools for the Duo16 emulator core",
+  "scripts": {
+    "test": "node test_cpu.js && node test_net.js 0.1 40 30 5 && node run_demo.js 300 && node test_ppu.js",
+    "demo": "node build_demo.js && node embed_demo.js"
+  }
+}

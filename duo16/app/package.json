@@ -1,0 +1,89 @@
+{
+  "name": "duo16",
+  "productName": "Duo16",
+  "version": "1.0.0",
+  "description": "A Super NES emulator built for playing online with a friend: synced cheats, synced rewind, no server needed.",
+  "main": "main.js",
+  "author": "Duo16",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac --universal && bash scripts/package-mac.sh"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "app.duo16.emulator",
+    "productName": "Duo16",
+    "directories": {
+      "output": "dist",
+      "buildResources": "buildres"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "package.json"
+    ],
+    "fileAssociations": [
+      {
+        "ext": [
+          "sfc",
+          "smc"
+        ],
+        "name": "Super NES ROM",
+        "role": "Viewer"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "buildres/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "Duo16-Setup-${version}.exe"
+    },
+    "portable": {
+      "artifactName": "Duo16-Portable-${version}.exe"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dir",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "category": "public.app-category.games",
+      "icon": "buildres/icon.png",
+      "identity": null,
+      "hardenedRuntime": false
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "icon": "buildres/icon.png",
+      "category": "Game"
+    }
+  }
+}
