@@ -1,5 +1,6 @@
 // Duo16 — Electron main process
-const { app, BrowserWindow, ipcMain, dialog, Menu, shell, clipboard } = require('electron');
+const electron = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell, clipboard } = electron;
 const path = require('path');
 const fs = require('fs');
 const zlib = require('zlib');
@@ -178,6 +179,129 @@ ipcMain.handle('settings:load', () => {
 ipcMain.handle('settings:save', (_e, s) => { fs.writeFileSync(path.join(dataDir(), 'settings.json'), JSON.stringify(s, null, 2)); return true; });
 ipcMain.handle('clipboard:write', (_e, text) => { clipboard.writeText(String(text)); return true; });
 ipcMain.handle('clipboard:read', () => clipboard.readText());
+// ---------------- Online cheat library (libretro-database on GitHub) ----------------
+// The game list (No-Intro) identifies a ROM exactly by its CRC; each game's cheat file is named after the game.
+const CHEAT_BASE = 'https://raw.githubusercontent.com/libretro/libretro-database/master';
+const SNES_SET = 'Nintendo - Super Nintendo Entertainment System';
+const INDEX_MAX_AGE = 30 * 24 * 3600 * 1000;
+const cheatDir = () => ensureDir(path.join(dataDir(), 'cheat-library'));
+let cheatIndex = null; // { at, games: [[name, crc]] }
+
+async function httpGet(url) {
+  const f = electron.net && electron.net.fetch ? electron.net.fetch.bind(electron.net) : fetch;
+  let res;
+  try { res = await f(url, { headers: { 'User-Agent': 'Duo16' } }); }
+  catch (e) { const err = new Error('offline'); err.offline = true; throw err; }
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`The cheat library answered with an error (${res.status}). Try again later.`);
+  return await res.text();
+}
+
+function parseDat(text) {
+  const games = []; let name = null;
+  for (const line of text.split(/\r?\n/)) {
+    const t = line.trim();
+    if (t.startsWith('game (')) { name = null; continue; }
+    let m = t.match(/^name "(.*)"$/);
+    if (m && name === null) { name = m[1]; continue; }
+    m = t.match(/^rom \(.*\bcrc ([0-9A-Fa-f]{8})\b/);
+    if (m && name !== null) { games.push([name, parseInt(m[1], 16) >>> 0]); name = '\u0000'; }
+  }
+  return games.filter((g) => g[0] !== '\u0000');
+}
+
+async function loadCheatIndex() {
+  if (cheatIndex && Date.now() - cheatIndex.at < INDEX_MAX_AGE) return cheatIndex;
+  const file = path.join(cheatDir(), 'snes-games.json');
+  let cached = null;
+  try { cached = JSON.parse(fs.readFileSync(file, 'utf8')); } catch (_) { }
+  if (cached && Date.now() - cached.at < INDEX_MAX_AGE) return (cheatIndex = cached);
+  try {
+    const text = await httpGet(`${CHEAT_BASE}/metadat/no-intro/${encodeURIComponent(SNES_SET)}.dat`);
+    if (!text) throw new Error('The cheat library\'s game list has moved. Duo16 needs an update to use it.');
+    const games = parseDat(text);
+    if (games.length < 100) throw new Error('The cheat library\'s game list could not be read.');
+    cheatIndex = { at: Date.now(), games };
+    fs.writeFileSync(file, JSON.stringify(cheatIndex));
+    return cheatIndex;
+  } catch (e) {
+    if (cached) return (cheatIndex = cached); // use the older copy when offline
+    if (e.offline) throw new Error('Couldn\'t reach the cheat library. Check your internet connection and try again.');
+    throw e;
+  }
+}
+
+function normTitle(s) {
+  return String(s).toLowerCase().replace(/\.(sfc|smc|swc|fig|zip|bin)$/i, '').replace(/[([][^)\]]*[)\]]/g, ' ')
+    .replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim();
+}
+function scoreTitle(query, name) {
+  const q = normTitle(query), n = normTitle(name);
+  if (!q || !n) return 0;
+  const qc = q.replace(/ /g, ''), nc = n.replace(/ /g, '');
+  let s = 0;
+  if (qc === nc) s = 100;
+  else if (nc.startsWith(qc) || qc.startsWith(nc)) s = 75;
+  else if (nc.includes(qc)) s = 60;
+  else {
+    const qt = q.split(' '), nt = n.split(' ');
+    const hit = qt.filter((w) => nt.some((x) => x === w || (w.length > 2 && x.startsWith(w)))).length;
+    s = (hit / qt.length) * 55 - Math.max(0, nt.length - qt.length) * 2;
+  }
+  if (/\(USA/.test(name)) s += 4; else if (/\(World|\(Europe/.test(name)) s += 2;
+  if (/\((Beta|Proto|Demo|Sample|Pirate|Hack|Unl|Aftermarket)/i.test(name)) s -= 15;
+  if (/\(Rev /.test(name)) s -= 1;
+  return s;
+}
+function bestMatches(queries, games, limit) {
+  const scored = new Map();
+  for (const [name] of games) {
+    let best = 0;
+    for (const q of queries) if (q) best = Math.max(best, scoreTitle(q, name));
+    if (best >= 35) scored.set(name, Math.max(best, scored.get(name) || 0));
+  }
+  return [...scored.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit).map((e) => e[0]);
+}
+
+ipcMain.handle('cheatdb:lookup', async (_e, crc, hints) => {
+  const idx = await loadCheatIndex();
+  const exact = idx.games.find((g) => g[1] === (crc >>> 0));
+  const queries = [exact && exact[0], ...(Array.isArray(hints) ? hints.map(String) : [])].filter(Boolean);
+  const suggestions = bestMatches(queries, idx.games, 12).filter((n) => !exact || n !== exact[0]);
+  return { exact: exact ? exact[0] : null, suggestions };
+});
+ipcMain.handle('cheatdb:search', async (_e, query) => {
+  const idx = await loadCheatIndex();
+  return bestMatches([String(query).slice(0, 100)], idx.games, 30);
+});
+ipcMain.handle('cheatdb:get', async (_e, name) => {
+  name = String(name);
+  const idx = await loadCheatIndex();
+  if (!idx.games.some((g) => g[0] === name)) throw new Error('Unknown game.');
+  const file = path.join(cheatDir(), safeKey(name) + '.cht');
+  let text = null;
+  try {
+    text = await httpGet(`${CHEAT_BASE}/cht/${encodeURIComponent(SNES_SET)}/${encodeURIComponent(name)}.cht`);
+    if (text !== null) fs.writeFileSync(file, text);
+  } catch (e) {
+    if (fs.existsSync(file)) text = fs.readFileSync(file, 'utf8');
+    else if (e.offline) throw new Error('Couldn\'t reach the cheat library. Check your internet connection and try again.');
+    else throw e;
+  }
+  if (text === null) return { found: false, cheats: [] };
+  return { found: true, cheats: parseCht(text) };
+});
+function parseCht(text) {
+  const byIdx = {};
+  for (const line of text.split(/\r?\n/)) {
+    const m = line.match(/^\s*cheat(\d+)_(desc|code)\s*=\s*"(.*)"\s*$/);
+    if (!m) continue;
+    (byIdx[m[1]] = byIdx[m[1]] || {})[m[2]] = m[3].replace(/\\"/g, '"');
+  }
+  return Object.keys(byIdx).map(Number).sort((a, b) => a - b).map((i) => byIdx[i])
+    .filter((c) => c.code && c.code.trim()).map((c) => ({ desc: (c.desc || '').trim().slice(0, 80), code: c.code.trim().slice(0, 400) }));
+}
+
 ipcMain.handle('app:info', () => ({ version: app.getVersion(), platform: process.platform, addresses: localAddresses() }));
 ipcMain.on('app:set-title', (_e, t) => { if (win) win.setTitle(t); });
 

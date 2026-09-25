@@ -212,7 +212,7 @@ function sanitizeCmds(c) {
     else if (x.k === 'cheats' && Array.isArray(x.list)) {
       out.push({
         k: 'cheats', note: typeof x.note === 'string' ? x.note.slice(0, 80) : undefined,
-        list: x.list.slice(0, 200).map((c) => ({ code: String(c.code || '').slice(0, 20), desc: String(c.desc || '').slice(0, 80), enabled: !!c.enabled, kind: ['auto', 'gg', 'par'].includes(c.kind) ? c.kind : 'auto' })),
+        list: x.list.slice(0, 200).map((c) => ({ code: String(c.code || '').slice(0, 400), desc: String(c.desc || '').slice(0, 80), enabled: !!c.enabled, kind: ['auto', 'gg', 'par'].includes(c.kind) ? c.kind : 'auto' })),
       });
     } else if (x.k === 'settings' && x.settings && typeof x.settings === 'object') {
       const s = x.settings; out.push({ k: 'settings', settings: { guestCheats: !!s.guestCheats, guestRewind: !!s.guestRewind, guestPause: !!s.guestPause, guestReset: !!s.guestReset } });

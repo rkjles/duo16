@@ -97,6 +97,9 @@ async function loadRom(r, opts = {}) {
   audio.flush();
   refreshSlots();
   renderCheats();
+  lib.forKey = null; lib.game = null; lib.cheats = []; $('lib-body').hidden = true; renderLibList();
+  libStatus(rom.demo ? 'The demo game has no cheat library. Open a ROM to look up its cheats.' : 'Looks up Game Genie and Action Replay codes for the game you\'re playing.');
+  if (!$('panel-cheats').hidden && !rom.demo) libFind();
   if (net.mode === 'connected' && net.role === 'host') announceRom();
   if (isGuest()) sendReady();
   return true;
@@ -371,7 +374,7 @@ function renderCheats() {
   if (!list.length) { const li = document.createElement('li'); li.className = 'empty'; li.textContent = 'No cheats yet'; ul.appendChild(li); return; }
   list.forEach((c, i) => {
     const li = document.createElement('li');
-    const kind = (() => { try { return parseCheat(c.code, c.kind).type === 'gg' ? 'GG' : 'PAR'; } catch (_) { return '?'; } })();
+    const kind = (() => { try { const ps = parseCheatCodes(c.code, c.kind); const t = new Set(ps.map((p) => p.type)); return t.size > 1 ? 'MIX' : (ps[0].type === 'gg' ? 'GG' : 'PAR'); } catch (_) { return '?'; } })();
     li.innerHTML = `<input type="checkbox" ${c.enabled ? 'checked' : ''} aria-label="Enabled"><div style="min-width:0"><div><span class="c-code"></span><span class="c-kind">${kind}</span></div><div class="c-desc"></div></div><button class="x" title="Remove" aria-label="Remove">×</button>`;
     li.querySelector('.c-code').textContent = c.code;
     li.querySelector('.c-desc').textContent = c.desc || 'No description';
@@ -388,11 +391,83 @@ function describeCode() {
   const el = $('cheat-decode'); const v = $('cheat-code').value.trim();
   if (!v) { el.textContent = ''; el.className = 'decode'; return; }
   try {
-    const p = parseCheat(v, $('cheat-kind').value);
+    const ps = parseCheatCodes(v, $('cheat-kind').value); const p = ps[0];
     const addr = `$${hex(p.addr >> 16, 2)}:${hex(p.addr & 0xFFFF, 4)}`;
-    el.textContent = `${p.type === 'gg' ? 'Game Genie' : 'Action Replay'} → ${p.type === 'gg' ? 'replaces the byte at' : 'holds'} ${addr} ${p.type === 'gg' ? 'with' : 'at'} $${hex(p.value, 2)}`;
+    el.textContent = `${p.type === 'gg' ? 'Game Genie' : 'Action Replay'} → ${p.type === 'gg' ? 'replaces the byte at' : 'holds'} ${addr} ${p.type === 'gg' ? 'with' : 'at'} $${hex(p.value, 2)}` + (ps.length > 1 ? ` (+${ps.length - 1} more code${ps.length > 2 ? 's' : ''})` : '');
     el.className = 'decode';
   } catch (e) { el.textContent = e.message; el.className = 'decode bad'; }
+}
+
+// ---------------------------------------------------------------- online cheat library
+const lib = { forKey: null, game: null, cheats: [], busy: false };
+function libStatus(text, bad) { const el = $('lib-status'); el.textContent = text; el.style.color = bad ? 'var(--bad)' : ''; }
+function normCode(c) { return String(c).toUpperCase().replace(/\s+/g, ''); }
+function libOption(name, label) { const o = document.createElement('option'); o.value = name; o.textContent = label || name; return o; }
+async function libFind() {
+  if (!rom) { libStatus('Load a game first.'); return; }
+  if (rom.demo) { libStatus('The demo game has no cheat library. Open a ROM to look up its cheats.'); $('lib-body').hidden = true; return; }
+  if (lib.busy) return;
+  lib.busy = true; $('lib-find').disabled = true;
+  libStatus(`Looking up ${rom.title}…`);
+  try {
+    const hints = [rom.name, rom.title].filter(Boolean);
+    const r = await window.duo.cheatLibrary.lookup(rom.crc, hints);
+    lib.forKey = rom.key;
+    const sel = $('lib-game'); sel.innerHTML = '';
+    if (r.exact) sel.appendChild(libOption(r.exact, `${r.exact} (exact match)`));
+    for (const n of r.suggestions) sel.appendChild(libOption(n));
+    $('lib-body').hidden = false;
+    if (!sel.options.length) {
+      libStatus('This ROM isn\'t in the library\'s game list. Search for the game by name below.');
+      renderLibList(); return;
+    }
+    await libLoad(sel.value, !r.exact);
+  } catch (e) { libStatus(e.message, true); }
+  finally { lib.busy = false; $('lib-find').disabled = false; }
+}
+async function libLoad(name, guessed) {
+  lib.game = name; lib.cheats = [];
+  $('lib-filter').value = ''; renderLibList();
+  libStatus(`Getting cheats for ${name}…`);
+  try {
+    const r = await window.duo.cheatLibrary.get(name);
+    if (lib.game !== name) return;
+    if (!r.found || !r.cheats.length) {
+      libStatus(`No cheats in the library for ${name}. Try another version in the list.`);
+      renderLibList(); return;
+    }
+    lib.cheats = r.cheats.map((c) => { let ok = true; try { parseCheatCodes(c.code); } catch (_) { ok = false; } return { ...c, ok }; });
+    const usable = lib.cheats.filter((c) => c.ok).length;
+    libStatus(`${usable} cheat${usable === 1 ? '' : 's'} for ${name}.` + (guessed ? ' This is a best guess from the file name; check the version is right.' : '') + (usable < lib.cheats.length ? ` ${lib.cheats.length - usable} use a format Duo16 can't read and are hidden.` : ''));
+    $('lib-filter').hidden = usable < 8;
+    renderLibList();
+  } catch (e) { libStatus(e.message, true); }
+}
+function renderLibList() {
+  const ul = $('lib-list'); ul.innerHTML = '';
+  const f = $('lib-filter').value.trim().toLowerCase();
+  const have = new Set(machine.cheatList.map((c) => normCode(c.code)));
+  const rows = lib.cheats.filter((c) => c.ok && (!f || c.desc.toLowerCase().includes(f) || c.code.toLowerCase().includes(f)));
+  if (lib.cheats.length && !rows.length) { const li = document.createElement('li'); li.className = 'empty'; li.textContent = 'No cheats match that filter.'; ul.appendChild(li); return; }
+  for (const c of rows.slice(0, 400)) {
+    const li = document.createElement('li');
+    li.innerHTML = '<div style="min-width:0"><div class="l-desc"></div><div class="l-code"></div></div>';
+    li.querySelector('.l-desc').textContent = c.desc || 'No description';
+    li.querySelector('.l-code').textContent = c.code.replace(/\+/g, ' + ');
+    li.querySelector('.l-code').title = c.code;
+    if (have.has(normCode(c.code))) {
+      const s = document.createElement('span'); s.className = 'added'; s.textContent = 'Added'; li.appendChild(s);
+    } else {
+      const b = document.createElement('button'); b.className = 'btn small'; b.textContent = 'Add';
+      b.onclick = () => {
+        if (!canCheat()) { toast('The host has turned off cheats for guests.'); return; }
+        commitCheats([...machine.cheatList, { code: normCode(c.code), desc: c.desc, enabled: true, kind: 'auto' }], `added ${c.desc || c.code}`);
+        b.disabled = true; b.textContent = 'Adding…';
+      };
+      li.appendChild(b);
+    }
+    ul.appendChild(li);
+  }
 }
 
 // ---------------------------------------------------------------- controls UI
@@ -491,6 +566,7 @@ function draw() {
   if (machine.cheatVersion !== lastCheatVersion) {
     lastCheatVersion = machine.cheatVersion;
     renderCheats();
+    if (lib.cheats.length) renderLibList();
     if (rom && !rom.demo && !isGuest()) window.duo.saveCheats(rom.key, machine.cheatList);
   }
   $('btn-pause').classList.toggle('on', !!machine.paused);
@@ -552,6 +628,7 @@ function bind() {
   for (const t of document.querySelectorAll('.tab')) t.onclick = () => {
     document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('active', x === t));
     for (const p of document.querySelectorAll('.panel')) p.hidden = p.id !== 'panel-' + t.dataset.tab;
+    if (t.dataset.tab === 'cheats' && rom && !rom.demo && lib.forKey !== rom.key) libFind();
   };
   $('o-host').onclick = hostStart; $('o-join').onclick = joinStart;
   $('o-direct').onclick = () => showView('direct');
@@ -569,14 +646,29 @@ function bind() {
     settings.delayPref = e.target.value; saveSettings();
     if (myRole() === 'host') { session.delay = chosenDelay(); session.sendSync(`Input delay set to ${session.delay} frames`); }
   };
+  $('lib-find').onclick = libFind;
+  $('lib-game').onchange = (e) => libLoad(e.target.value, false);
+  $('lib-filter').oninput = renderLibList;
+  $('lib-search-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const q = $('lib-search').value.trim(); if (!q) return;
+    libStatus(`Searching for "${q}"…`);
+    try {
+      const names = await window.duo.cheatLibrary.search(q);
+      if (!names.length) { libStatus(`No games found for "${q}". Try fewer or different words.`); return; }
+      const sel = $('lib-game'); sel.innerHTML = '';
+      for (const n of names) sel.appendChild(libOption(n));
+      await libLoad(names[0], false);
+    } catch (err) { libStatus(err.message, true); }
+  };
   $('cheat-code').oninput = describeCode; $('cheat-kind').onchange = describeCode;
   $('cheat-form').onsubmit = (e) => {
     e.preventDefault();
     if (!rom) { toast('Load a game first.'); return; }
     try {
-      const p = parseCheat($('cheat-code').value, $('cheat-kind').value);
+      const text = parseCheatCodes($('cheat-code').value, $('cheat-kind').value).map((p) => p.text).join('+');
       const desc = $('cheat-desc').value.trim();
-      commitCheats([...machine.cheatList, { code: p.text, desc, enabled: true, kind: $('cheat-kind').value }], `added ${desc || p.text}`);
+      commitCheats([...machine.cheatList, { code: text, desc, enabled: true, kind: $('cheat-kind').value }], `added ${desc || text}`);
       $('cheat-code').value = ''; $('cheat-desc').value = ''; describeCode();
     } catch (err) { toast(err.message, 'bad'); }
   };
@@ -667,9 +759,17 @@ function renderPadBindings() {
 }
 function renderPadLive() {
   const live = $('pad-live');
-  if (!live.childElementCount) for (const b of BUTTONS) { const s = document.createElement('span'); s.textContent = b.label.toUpperCase(); s.dataset.bit = b.bit; live.appendChild(s); }
-  const bits = input.padCapture ? 0 : input.readPad(input.p1Pad());
-  for (const s of live.children) s.classList.toggle('on', !!(bits & +s.dataset.bit));
+  if (!live.childElementCount) for (const b of BUTTONS) { const el = document.createElement('span'); el.textContent = b.label.toUpperCase(); el.dataset.bit = b.bit; live.appendChild(el); }
+  let bits = 0;
+  if (!input.padCapture) {
+    bits = input.readPad(input.p1Pad());
+    for (const b of BUTTONS) if (input.down.has(input.keys[b.id])) bits |= b.bit;
+  }
+  for (const el of live.children) el.classList.toggle('on', !!(bits & +el.dataset.bit));
+  for (const el of document.querySelectorAll('.pad-diagram [data-btn]')) {
+    const b = BUTTONS.find((x) => x.id === el.dataset.btn);
+    el.classList.toggle('on', !!(b && (bits & b.bit)));
+  }
 }
 
 async function init() {

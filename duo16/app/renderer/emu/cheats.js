@@ -35,6 +35,14 @@ function parseCheat(text, hint = 'auto') {
   return { type: 'gg', addr: addr >>> 0, value, text: compact.slice(0, 4) + '-' + compact.slice(4) };
 }
 
+// A cheat entry can hold several codes joined with '+' (e.g. "7E0F3109+7E0F3209")
+function parseCheatCodes(text, hint = 'auto') {
+  const parts = String(text).split('+').map((s) => s.trim()).filter(Boolean);
+  if (!parts.length) throw new Error('Enter a code.');
+  if (parts.length > 32) throw new Error('That cheat has too many codes.');
+  return parts.map((p) => parseCheat(p, hint));
+}
+
 // Manages active cheats on an emulator instance. All changes must be applied at frame boundaries.
 class CheatEngine {
   constructor(snes) {
@@ -43,7 +51,7 @@ class CheatEngine {
     this.romPatches = new Map(); // romOffset -> original byte
   }
   setList(list) {
-    this.list = list.map((c) => ({ ...c, parsed: parseCheat(c.code, c.kind || 'auto') }));
+    this.list = list.map((c) => ({ ...c, parsed: parseCheatCodes(c.code, c.kind || 'auto') }));
     this.rebuild();
   }
   romOffsetFor(addr) {
@@ -58,12 +66,13 @@ class CheatEngine {
     this.ramWrites = [];
     for (const c of this.list) {
       if (!c.enabled) continue;
-      const { addr, value } = c.parsed;
-      const off = this.romOffsetFor(addr);
-      if (off >= 0) {
-        if (!this.romPatches.has(off)) this.romPatches.set(off, rom[off]);
-        rom[off] = value;
-      } else this.ramWrites.push([addr, value]);
+      for (const { addr, value } of c.parsed) {
+        const off = this.romOffsetFor(addr);
+        if (off >= 0) {
+          if (!this.romPatches.has(off)) this.romPatches.set(off, rom[off]);
+          rom[off] = value;
+        } else this.ramWrites.push([addr, value]);
+      }
     }
   }
   // Called before every frame (identically on every machine in a session)

@@ -98,15 +98,19 @@ Change any of these in the **Controls** tab. In offline play, a second gamepad c
 2. Press buttons and watch the row of button names light up to check they're right.
 3. If a button is wrong, click it in the list, then press the button you want on the controller. Duo16 remembers the layout for that controller.
 
+The **Controls** tab shows a diagram of the SNES buttons that lights up as you press them, plus a table of which Xbox and PlayStation buttons match SNES A, B, X and Y.
+
 Xbox and PlayStation controllers work without setup. Other USB controllers, including SNES-style pads, get a best-guess layout that you can fix in a few clicks. During online play, each player sets up their own controller on their own computer.
 
 ## 4. Cheats
 
-In the **Cheats** tab, enter a code and a short description:
+**Find cheats online.** Open the **Cheats** tab while a game is running. Duo16 identifies your exact ROM and lists the cheats for it from the free [libretro cheat database](https://github.com/libretro/libretro-database). Click **Add** next to any cheat you want. If the game version isn't right, pick another from **Game version** or search by name. Cheats you've looked up before still work offline.
+
+**Enter a code yourself.** Type a code and a short description:
 - **Game Genie**: `XXXX-XXXX`, for example `C9C8-6FAD`
 - **Pro Action Replay**: 8 hex digits, for example `7E0DBE05`, or `7E0DBE:05`
 
-Duo16 detects the type (you can also choose it). Cheats are saved per game. Online, any change takes effect at the same frame for both players, and the host can turn guest cheats off.
+Duo16 detects the type (you can also choose it). A cheat can hold several codes joined with `+`, like `7E0F3109+7E0F3209`. Cheats are saved per game. Online, any change takes effect at the same frame for both players, and the host can turn guest cheats off.
 
 ---
 

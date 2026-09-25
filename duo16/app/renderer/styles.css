@@ -218,3 +218,29 @@ input[type=range] { accent-color: var(--p1); width: 100%; }
 .pad-live span.on { background: var(--p1); border-color: var(--p1); color: var(--p1-ink); }
 .bind .custom { color: var(--p1); }
 select#pad-select { width: 100%; }
+
+.lib-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.lib-search input { flex: 1; min-width: 0; width: auto; }
+.lib-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 340px; overflow-y: auto; }
+.lib-list li { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 7px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
+.lib-list .l-desc { font-size: 12px; line-height: 1.3; }
+.lib-list .l-code { font: 10px var(--mono); color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib-list .added { font-size: 11px; color: var(--good); font-weight: 600; padding: 0 6px; }
+.lib-list .empty { display: block; color: var(--muted); font-size: 12px; border-style: dashed; }
+
+.pad-diagram { margin: 0; display: grid; gap: 10px; }
+.pad-diagram svg { width: 100%; height: auto; display: block; }
+.pd-body { fill: var(--panel-2); stroke: var(--line-2); stroke-width: 1.5; }
+.pd-sh { fill: var(--panel-2); stroke: var(--line-2); stroke-width: 1.5; }
+.pd-d, .pd-dc { fill: #2b3243; }
+.pd-arrow { fill: var(--faint); pointer-events: none; }
+.pd-sm { fill: #2b3243; stroke: var(--line-2); }
+.pd-f { fill: var(--ink); stroke: var(--line-2); stroke-width: 1.5; }
+.pd-t { fill: var(--text); font: 700 13px var(--ui); text-anchor: middle; pointer-events: none; }
+.pd-lab { fill: var(--faint); font: 600 7px var(--ui); letter-spacing: .08em; text-anchor: middle; }
+.pad-diagram [data-btn].on { fill: var(--p1); stroke: var(--p1); }
+.pad-diagram [data-btn].on + .pd-t { fill: var(--p1-ink); }
+.pad-xref { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.pad-xref th { text-align: left; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); font-weight: 600; padding: 0 6px 4px 0; }
+.pad-xref td { padding: 3px 6px 3px 0; border-top: 1px solid var(--line); color: var(--muted); }
+.pad-xref td b { color: var(--text); }

@@ -175,6 +175,23 @@
       <!-- CHEATS -->
       <section class="panel" id="panel-cheats" hidden>
         <p class="note" id="cheat-lock" hidden>The host has turned off cheats for guests.</p>
+        <div class="box" id="lib">
+          <div class="lib-head">
+            <div class="step-title">Cheat library</div>
+            <button class="btn small" id="lib-find">Find cheats online</button>
+          </div>
+          <p class="note" id="lib-status">Looks up Game Genie and Action Replay codes for the game you're playing.</p>
+          <div id="lib-body" hidden>
+            <label class="field"><span>Game version</span><select id="lib-game"></select></label>
+            <form id="lib-search-form" class="row lib-search" autocomplete="off">
+              <input id="lib-search" placeholder="Wrong game? Search by name" spellcheck="false">
+              <button class="btn small" type="submit">Search</button>
+            </form>
+            <input id="lib-filter" placeholder="Filter these cheats, e.g. lives" spellcheck="false" hidden>
+            <ul id="lib-list" class="lib-list"></ul>
+          </div>
+        </div>
+        <div class="step-title">Enter a code</div>
         <form id="cheat-form" class="cheat-form" autocomplete="off">
           <label class="field"><span>Code</span><input id="cheat-code" class="mono" placeholder="C9C8-6FAD or 7E0DBE05" spellcheck="false"></label>
           <label class="field"><span>What it does</span><input id="cheat-desc" placeholder="Infinite lives"></label>
@@ -186,6 +203,7 @@
           </div>
           <div class="decode" id="cheat-decode"></div>
         </form>
+        <div class="step-title">Your cheats</div>
         <ul id="cheat-list" class="cheat-list"></ul>
         <p class="note">In online play, cheats switch on at the same frame for both players.</p>
       </section>
@@ -206,7 +224,43 @@
           <div class="step-title">Controller</div>
           <label class="field"><span>Your controller</span><select id="pad-select"></select></label>
           <p class="note" id="pad-status">No controller detected. Plug it in and press any button on it.</p>
-          <div class="pad-live" id="pad-live" aria-label="Buttons you are pressing right now"></div>
+          <figure class="pad-diagram">
+            <svg viewBox="0 0 320 150" role="img" aria-labelledby="pad-diagram-title">
+              <title id="pad-diagram-title">Super NES button layout: D-pad on the left, Select and Start in the middle, X on top, A on the right, B on the bottom and Y on the left of the face buttons, L and R on the shoulders.</title>
+              <rect class="pd-body" x="10" y="28" width="300" height="110" rx="34"/>
+              <rect class="pd-sh" data-btn="l" x="26" y="10" width="78" height="22" rx="10"/>
+              <text class="pd-t" x="65" y="25">L</text>
+              <rect class="pd-sh" data-btn="r" x="216" y="10" width="78" height="22" rx="10"/>
+              <text class="pd-t" x="255" y="25">R</text>
+              <path class="pd-d" data-btn="up" d="M66 56h18v18h-18z"/>
+              <path class="pd-d" data-btn="down" d="M66 92h18v18h-18z"/>
+              <path class="pd-d" data-btn="left" d="M48 74h18v18h-18z"/>
+              <path class="pd-d" data-btn="right" d="M84 74h18v18h-18z"/>
+              <rect class="pd-dc" x="66" y="74" width="18" height="18"/>
+              <path class="pd-arrow" d="M75 60l-4 6h8zM75 106l-4-6h8zM52 83l6-4v8zM98 83l-6-4v8z"/>
+              <rect class="pd-sm" data-btn="select" x="128" y="88" width="26" height="10" rx="5" transform="rotate(-25 141 93)"/>
+              <rect class="pd-sm" data-btn="start" x="164" y="88" width="26" height="10" rx="5" transform="rotate(-25 177 93)"/>
+              <text class="pd-lab" x="141" y="116">SELECT</text>
+              <text class="pd-lab" x="177" y="116">START</text>
+              <circle class="pd-f" data-btn="x" cx="246" cy="58" r="14"/><text class="pd-t" x="246" y="63">X</text>
+              <circle class="pd-f" data-btn="a" cx="274" cy="83" r="14"/><text class="pd-t" x="274" y="88">A</text>
+              <circle class="pd-f" data-btn="b" cx="246" cy="108" r="14"/><text class="pd-t" x="246" y="113">B</text>
+              <circle class="pd-f" data-btn="y" cx="218" cy="83" r="14"/><text class="pd-t" x="218" y="88">Y</text>
+            </svg>
+            <figcaption>
+              <table class="pad-xref">
+                <thead><tr><th>SNES</th><th>Position</th><th>Xbox</th><th>PlayStation</th></tr></thead>
+                <tbody>
+                  <tr><td><b>B</b></td><td>Bottom</td><td>A</td><td>Cross ✕</td></tr>
+                  <tr><td><b>A</b></td><td>Right</td><td>B</td><td>Circle ○</td></tr>
+                  <tr><td><b>Y</b></td><td>Left</td><td>X</td><td>Square □</td></tr>
+                  <tr><td><b>X</b></td><td>Top</td><td>Y</td><td>Triangle △</td></tr>
+                </tbody>
+              </table>
+              <p class="note">Buttons light up as you press them, on your controller or keyboard. Duo16 matches buttons by where they sit, so the letters on an Xbox controller differ from the SNES ones.</p>
+            </figcaption>
+          </figure>
+          <div class="pad-live" id="pad-live" hidden aria-label="Buttons you are pressing right now"></div>
           <div id="pad-setup">
             <p class="note">If a button does the wrong thing, click it below, then press the button you want on your controller.</p>
             <div class="bind-grid" id="bind-pad"></div>

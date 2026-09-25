@@ -14,6 +14,11 @@ contextBridge.exposeInMainWorld('duo', {
   saveCheats: (key, list) => ipcRenderer.invoke('cheats:save', key, list),
   loadSettings: () => ipcRenderer.invoke('settings:load'),
   saveSettings: (s) => ipcRenderer.invoke('settings:save', s),
+  cheatLibrary: {
+    lookup: (crc, hints) => ipcRenderer.invoke('cheatdb:lookup', crc, hints),
+    search: (q) => ipcRenderer.invoke('cheatdb:search', q),
+    get: (name) => ipcRenderer.invoke('cheatdb:get', name),
+  },
   copy: (t) => ipcRenderer.invoke('clipboard:write', t),
   paste: () => ipcRenderer.invoke('clipboard:read'),
   info: () => ipcRenderer.invoke('app:info'),
