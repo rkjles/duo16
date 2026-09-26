@@ -31,6 +31,13 @@ function createWindow() {
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
   win.webContents.on('will-navigate', (e) => e.preventDefault());
+  win.webContents.on('context-menu', (_e, p) => {
+    if (!p.isEditable && !p.selectionText) return;
+    const items = p.isEditable
+      ? [{ role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { type: 'separator' }, { role: 'selectAll' }]
+      : [{ role: 'copy' }];
+    Menu.buildFromTemplate(items).popup({ window: win });
+  });
   win.on('closed', () => { win = null; closeDirect(); });
   win.webContents.once('did-finish-load', () => {
     if (pendingOpenFile) { openRomPath(pendingOpenFile); pendingOpenFile = null; }
@@ -52,6 +59,7 @@ function buildMenu() {
         isMac ? { role: 'close' } : { role: 'quit' },
       ],
     },
+    { role: 'editMenu' },
     {
       label: 'Game',
       submenu: [

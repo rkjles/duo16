@@ -99,7 +99,8 @@
             </li>
             <li>
               <div class="step-title">Paste the reply code they send back</div>
-              <textarea id="host-reply" rows="3" spellcheck="false" placeholder="DUO16-…"></textarea>
+              <div class="code-box"><textarea id="host-reply" rows="3" spellcheck="false" placeholder="DUO16-…"></textarea>
+                <button class="btn small" id="host-paste" type="button">Paste</button></div>
               <div class="row"><button class="btn primary" id="host-connect">Connect</button><button class="btn ghost" id="host-cancel">Cancel</button></div>
             </li>
           </ol>
@@ -109,7 +110,8 @@
           <ol class="steps">
             <li>
               <div class="step-title">Paste the invite code from the host</div>
-              <textarea id="join-invite" rows="4" spellcheck="false" placeholder="DUO16-…"></textarea>
+              <div class="code-box"><textarea id="join-invite" rows="4" spellcheck="false" placeholder="DUO16-…"></textarea>
+                <button class="btn small" id="join-paste" type="button">Paste</button></div>
               <div class="row"><button class="btn primary" id="join-make">Create reply code</button><button class="btn ghost" id="join-cancel">Cancel</button></div>
             </li>
             <li id="join-step2" class="dim">

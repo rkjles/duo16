@@ -659,6 +659,12 @@ function bind() {
   $('o-direct').onclick = () => showView('direct');
   $('host-copy').onclick = async () => { await window.duo.copy($('host-invite').value); toast('Invite code copied'); };
   $('join-copy').onclick = async () => { await window.duo.copy($('join-reply').value); toast('Reply code copied'); };
+  const pasteInto = (id) => async () => {
+    const t = String(await window.duo.paste() || '').trim();
+    if (!t) { toast('Nothing to paste. Copy the code first.'); return; }
+    $(id).value = t; $(id).focus();
+  };
+  $('host-paste').onclick = pasteInto('host-reply'); $('join-paste').onclick = pasteInto('join-invite');
   $('host-connect').onclick = hostConnect; $('join-make').onclick = joinMake;
   $('host-cancel').onclick = () => { closeLink(); showView('idle'); };
   $('join-cancel').onclick = () => { closeLink(); showView('idle'); };
