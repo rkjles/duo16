@@ -31,14 +31,41 @@ async function unpackCode(code) {
   } catch (_) { throw new Error('The code is incomplete or damaged. Copy the whole thing and try again.'); }
 }
 
+// Relay (TURN) servers are only used when a direct connection can't be made.
+// relay = { servers: [{ urls, username, credential }], force: bool }
+function cleanRelayServers(list) {
+  if (!Array.isArray(list)) return [];
+  const out = [];
+  for (const s of list.slice(0, 12)) {
+    if (!s || typeof s !== 'object') continue;
+    const urls = (Array.isArray(s.urls) ? s.urls : [s.urls]).map(String).filter((u) => /^(turns?|stun):/i.test(u)).slice(0, 8);
+    if (!urls.length) continue;
+    const e = { urls };
+    if (s.username != null) e.username = String(s.username).slice(0, 256);
+    if (s.credential != null) e.credential = String(s.credential).slice(0, 256);
+    out.push(e);
+  }
+  return out;
+}
+
 class RtcLink {
   constructor() {
     this.handlers = {};
-    this.pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    this.pc = null; this.relay = { servers: [], force: false };
     this.fast = null; this.rel = null; this.opened = false; this.closed = false;
+  }
+  init(relay) {
+    const servers = cleanRelayServers(relay && relay.servers);
+    this.relay = { servers, force: !!(relay && relay.force && servers.length) };
+    this.pc = new RTCPeerConnection({
+      iceServers: [...ICE_SERVERS, ...servers],
+      iceTransportPolicy: this.relay.force ? 'relay' : 'all',
+    });
     this.pc.onconnectionstatechange = () => {
       const st = this.pc.connectionState;
-      if (st === 'failed') this.fail('The connection could not be made. Your networks may block direct connections; try "Connect by IP" with a VPN like Tailscale.');
+      if (st === 'failed') this.fail(this.relay.servers.length
+        ? 'The connection could not be made, even through the relay. Check the relay settings with "Test relay", or try "Connect by IP" with Tailscale.'
+        : 'The connection could not be made. Your networks block direct connections. Set up a free relay under "Relay server" in the Online tab, then make a new invite code.');
       else if (st === 'disconnected') { this._dcTimer = setTimeout(() => { if (this.pc.connectionState === 'disconnected') this.fail('Lost connection to your friend.'); }, 5000); }
       else if (st === 'connected' && this._dcTimer) { clearTimeout(this._dcTimer); this._dcTimer = null; }
     };
@@ -63,18 +90,22 @@ class RtcLink {
   async gather() {
     if (this.pc.iceGatheringState === 'complete') return;
     await new Promise((res) => {
-      const t = setTimeout(res, 3000);
+      const t = setTimeout(res, this.relay.servers.length ? 6000 : 3000);
       this.pc.addEventListener('icegatheringstatechange', () => { if (this.pc.iceGatheringState === 'complete') { clearTimeout(t); res(); } });
     });
   }
   // Host side: create the invite code
-  async createInvite() {
+  async createInvite(relay) {
+    this.init(relay);
     this.fast = this.pc.createDataChannel('fast', { ordered: false, maxRetransmits: 0 });
     this.rel = this.pc.createDataChannel('rel', { ordered: true });
     this.wire(this.fast); this.wire(this.rel);
     await this.pc.setLocalDescription(await this.pc.createOffer());
     await this.gather();
-    return packCode({ v: 1, r: 'offer', sdp: this.pc.localDescription.sdp });
+    const o = { v: 1, r: 'offer', sdp: this.pc.localDescription.sdp };
+    // the relay details travel with the invite so the guest needs no setup
+    if (this.relay.servers.length) { o.ice = this.relay.servers; if (this.relay.force) o.force = 1; }
+    return packCode(o);
   }
   async acceptReply(code) {
     const o = await unpackCode(code);
@@ -82,9 +113,11 @@ class RtcLink {
     await this.pc.setRemoteDescription({ type: 'answer', sdp: o.sdp });
   }
   // Guest side: turn the host's invite into a reply code
-  async createReply(inviteCode) {
+  async createReply(inviteCode, ownRelay) {
     const o = await unpackCode(inviteCode);
     if (o.r !== 'offer') throw new Error('That\'s a reply code. Paste the invite code from the host.');
+    const servers = [...cleanRelayServers(o.ice), ...cleanRelayServers(ownRelay && ownRelay.servers)];
+    this.init({ servers, force: !!o.force || !!(ownRelay && ownRelay.force) });
     this.pc.ondatachannel = (e) => {
       if (e.channel.label === 'fast') this.fast = e.channel; else this.rel = e.channel;
       this.wire(e.channel); this.checkOpen();
@@ -100,7 +133,39 @@ class RtcLink {
     try { this.rel.send(o instanceof Uint8Array ? o : JSON.stringify(o)); } catch (_) { }
   }
   fail(reason) { if (this.closed) return; this.close(); this.handlers.close?.(reason); }
-  close() { this.closed = true; try { this.fast?.close(); this.rel?.close(); this.pc.close(); } catch (_) { } }
+  close() { this.closed = true; try { this.fast?.close(); this.rel?.close(); this.pc?.close(); } catch (_) { } }
+  // 'direct' or 'relay' once connected
+  async route() {
+    if (!this.pc) return null;
+    try {
+      const stats = await this.pc.getStats(); let pair = null;
+      stats.forEach((r) => { if (r.type === 'transport' && r.selectedCandidatePairId) pair = stats.get(r.selectedCandidatePairId); });
+      if (!pair) stats.forEach((r) => { if (r.type === 'candidate-pair' && r.nominated && r.state === 'succeeded') pair = r; });
+      if (!pair) return null;
+      const l = stats.get(pair.localCandidateId), rm = stats.get(pair.remoteCandidateId);
+      return (l && l.candidateType === 'relay') || (rm && rm.candidateType === 'relay') ? 'relay' : 'direct';
+    } catch (_) { return null; }
+  }
+}
+
+// Checks that a relay server accepts our login: resolves { ok, message }
+async function testRelay(servers) {
+  servers = cleanRelayServers(servers);
+  if (!servers.some((s) => s.urls.some((u) => /^turns?:/i.test(u)))) return { ok: false, message: 'No relay server address entered.' };
+  const pc = new RTCPeerConnection({ iceServers: servers, iceTransportPolicy: 'relay' });
+  const found = new Set(); const errors = [];
+  pc.onicecandidate = (e) => { if (e.candidate && / typ relay /.test(e.candidate.candidate)) found.add(e.candidate.protocol || 'udp'); };
+  pc.onicecandidateerror = (e) => { if (e.errorCode) errors.push(`${e.errorCode} ${e.errorText || ''}`.trim()); };
+  pc.createDataChannel('test');
+  await pc.setLocalDescription(await pc.createOffer());
+  await new Promise((res) => {
+    const t = setTimeout(res, 8000);
+    pc.onicegatheringstatechange = () => { if (pc.iceGatheringState === 'complete') { clearTimeout(t); res(); } };
+  });
+  pc.close();
+  if (found.size) return { ok: true, message: 'The relay works. Make a new invite code to use it.' };
+  if (errors.some((e) => /^401/.test(e))) return { ok: false, message: 'The relay rejected the username or password. Check them and try again.' };
+  return { ok: false, message: 'Couldn\'t reach the relay server. Check the address, or your internet connection.' };
 }
 
 class DirectLink {

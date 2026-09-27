@@ -8,7 +8,7 @@ let session = null;
 let link = null;
 const net = { mode: 'offline', role: null, remoteRom: null, autoDelayAt: 0, lastAutoDelay: 0, syncing: false };
 let rom = null;                 // { name, crc, key, demo, data }
-let settings = { keys: {}, padMaps: {}, padChoice: '', volume: 0.8, smooth: false, delayPref: 'auto', ffSpeed: 3, rwSpeed: 0, padCombos: true, perms: { guestCheats: true, guestRewind: true, guestPause: true, guestReset: false, guestFast: true } };
+let settings = { keys: {}, padMaps: {}, padChoice: '', volume: 0.8, smooth: false, delayPref: 'auto', ffSpeed: 3, rwSpeed: 0, padCombos: true, relay: { mode: 'off', link: '', url: '', user: '', pass: '', force: false, cache: null, cacheFor: '' }, perms: { guestCheats: true, guestRewind: true, guestPause: true, guestReset: false, guestFast: true } };
 let currentSlot = 1;
 let ffHeld = false;
 let sramWritable = true, sramLastCrc = 0;
@@ -159,6 +159,69 @@ async function loadState(slot) {
   } catch (e) { toast('That save state could not be loaded: ' + e.message, 'bad'); }
 }
 
+// ---------------------------------------------------------------- relay server settings
+function relayForm() {
+  return {
+    mode: $('relay-mode').value, link: $('relay-link').value.trim(), url: $('relay-url').value.trim(),
+    user: $('relay-user').value.trim(), pass: $('relay-pass').value, force: $('relay-force').checked,
+  };
+}
+function manualServers(r) {
+  let url = r.url.replace(/\s+/g, '');
+  if (!url) return [];
+  if (!/^(turns?|stun):/i.test(url)) url = 'turn:' + url.replace(/^[a-z]+:\/\//i, '');
+  const urls = [url];
+  if (/^turn:/i.test(url) && !/transport=/i.test(url)) urls.push(url + '?transport=tcp'); // also try TCP for strict networks
+  return [{ urls, username: r.user, credential: r.pass }];
+}
+// Returns { servers, force } for the current settings, or null when the relay is off
+async function getRelay(form) {
+  const r = form || settings.relay;
+  if (!r || r.mode === 'off') return null;
+  let servers;
+  if (r.mode === 'metered') {
+    if (!r.link) throw new Error('Paste your relay credentials link first.');
+    if (settings.relay.cache && settings.relay.cacheFor === r.link && Date.now() - (settings.relay.cacheAt || 0) < 12 * 3600e3) servers = settings.relay.cache;
+    else {
+      servers = await window.duo.fetchRelay(r.link);
+      Object.assign(settings.relay, { cache: servers, cacheFor: r.link, cacheAt: Date.now() }); saveSettings();
+    }
+  } else servers = manualServers(r);
+  if (!servers.length) throw new Error('Enter the relay server address first.');
+  return { servers, force: !!r.force };
+}
+function relayStatus(text, kind) { const el = $('relay-status'); el.textContent = text; el.className = 'note ' + (kind || ''); }
+function renderRelay() {
+  const r = settings.relay;
+  $('relay-mode').value = r.mode; $('relay-link').value = r.link || ''; $('relay-url').value = r.url || '';
+  $('relay-user').value = r.user || ''; $('relay-pass').value = r.pass || ''; $('relay-force').checked = !!r.force;
+  showRelayFields();
+  const on = r.mode !== 'off' && ((r.mode === 'metered' && r.link) || (r.mode === 'manual' && r.url));
+  $('relay-state').textContent = on ? (r.force ? 'On (always)' : 'On') : 'Off';
+  $('relay-state').classList.toggle('on', !!on);
+}
+function showRelayFields() {
+  const m = $('relay-mode').value;
+  $('relay-metered').hidden = m !== 'metered'; $('relay-manual').hidden = m !== 'manual'; $('relay-common').hidden = m === 'off';
+}
+async function saveRelay(andTest) {
+  const f = relayForm();
+  const changed = f.link !== settings.relay.cacheFor;
+  Object.assign(settings.relay, f);
+  if (changed) settings.relay.cache = null;
+  saveSettings(); renderRelay();
+  if (f.mode === 'off') { relayStatus('Relay is off.'); return; }
+  relayStatus(andTest ? 'Testing the relay…' : 'Checking…');
+  $('relay-test').disabled = true; $('relay-save').disabled = true;
+  try {
+    const relay = await getRelay();
+    if (!andTest) { relayStatus('Saved. New invite codes will include the relay.', 'good'); return; }
+    const res = await testRelay(relay.servers);
+    relayStatus(res.message, res.ok ? 'good' : 'bad');
+  } catch (e) { relayStatus(e.message, 'bad'); }
+  finally { $('relay-test').disabled = false; $('relay-save').disabled = false; }
+}
+
 // ---------------------------------------------------------------- online: connection flow
 function showView(name) {
   for (const v of document.querySelectorAll('#panel-online .view')) v.hidden = v.dataset.view !== name;
@@ -188,7 +251,11 @@ async function hostStart() {
   showView('host-code');
   net.role = 'host';
   $('host-invite').value = 'Creating code…'; $('host-reply').value = '';
-  try { $('host-invite').value = await newRtc().createInvite(); }
+  let relay = null;
+  try { relay = await getRelay(); }
+  catch (e) { toast('Relay not used: ' + e.message, 'bad'); }
+  if (relay) $('host-invite').value = 'Creating code (with relay)…';
+  try { $('host-invite').value = await newRtc().createInvite(relay); }
   catch (e) { toast('Could not create an invite: ' + e.message, 'bad'); showView('idle'); }
 }
 async function hostConnect() {
@@ -202,7 +269,9 @@ function joinStart() {
 async function joinMake() {
   try {
     $('join-make').disabled = true; $('join-make').textContent = 'Creating…';
-    const code = await newRtc().createReply($('join-invite').value);
+    let own = null;
+    try { own = await getRelay(); } catch (_) { }
+    const code = await newRtc().createReply($('join-invite').value, own);
     $('join-reply').value = code; $('join-step2').classList.remove('dim'); $('join-copy').disabled = false;
   } catch (e) { toast(e.message, 'bad'); }
   finally { $('join-make').disabled = false; $('join-make').textContent = 'Create reply code'; }
@@ -332,6 +401,8 @@ function updateOnlinePanel() {
   const ping = st && st.rtt ? `${st.rtt} ms` : '–';
   $('st-ping').textContent = ping;
   $('st-delay').textContent = st ? `${st.delay} fr` : '–';
+  if (link && typeof link.route === 'function') link.route().then((r) => { if (r) $('st-route').textContent = r === 'relay' ? 'Relay' : 'Direct'; });
+  else $('st-route').textContent = link ? 'Direct (IP)' : '–';
   $('st-sync').textContent = net.syncing ? 'Syncing' : !st ? 'Waiting' : st.desyncs ? `Repaired ×${st.desyncs}` : 'In sync';
   $('p1-meta').textContent = me === 1 ? '' : ping;
   $('p2-meta').textContent = me === 2 ? '' : ping;
@@ -733,6 +804,9 @@ function bind() {
   $('d-host').onclick = directHost; $('d-join').onclick = directJoin;
   $('d-cancel').onclick = () => { closeLink(); showView('idle'); $('d-host-info').textContent = ''; };
   $('o-leave').onclick = leaveSession;
+  $('relay-mode').onchange = () => { showRelayFields(); if ($('relay-mode').value === 'off') saveRelay(false); };
+  $('relay-save').onclick = () => saveRelay(false);
+  $('relay-test').onclick = () => saveRelay(true);
   $('rom-mismatch-open').onclick = openRomDialog;
   for (const id of ['perm-cheats', 'perm-rewind', 'perm-pause', 'perm-reset', 'perm-fast']) $(id).onchange = applyHostSettings;
   $('rw-speed').onchange = (e) => { settings.rwSpeed = +e.target.value; saveSettings(); };
@@ -889,6 +963,8 @@ async function init() {
   $('perm-pause').checked = settings.perms.guestPause; $('perm-reset').checked = settings.perms.guestReset; $('perm-fast').checked = settings.perms.guestFast !== false;
   $('ff-speed').value = String(settings.ffSpeed || 3);
   $('rw-speed').value = String(settings.rwSpeed || 0);
+  settings.relay = { mode: 'off', link: '', url: '', user: '', pass: '', force: false, cache: null, cacheFor: '', ...(settings.relay || {}) };
+  renderRelay();
   bind(); renderBindings(); renderHints(); refreshSlots(); updatePadStatus(); renderCheats();
   showView('idle');
   const recents = await window.duo.recentRoms();

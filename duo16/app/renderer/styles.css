@@ -149,7 +149,7 @@ kbd { font: 11px var(--mono); background: var(--panel-2); border: 1px solid var(
   content: counter(s); position: absolute; left: 0; top: -1px; width: 20px; height: 20px; border-radius: 50%;
   display: grid; place-items: center; font: 600 11px var(--mono); background: var(--panel-2); border: 1px solid var(--line-2);
 }
-textarea, input[type=text], input[type=number], input:not([type]), select {
+textarea, input[type=text], input[type=number], input[type=password], input:not([type]), select {
   width: 100%; background: var(--ink); color: var(--text); border: 1px solid var(--line-2); border-radius: 6px;
   padding: 7px 9px; font: 12px var(--ui);
 }
@@ -174,7 +174,7 @@ input[type=range] { accent-color: var(--p1); width: 100%; }
 .player.p2 .badge { background: var(--p2); color: var(--p2-ink); }
 .player .who { font-weight: 600; }
 .player .meta { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
-.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 0; }
+.stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin: 0; }
 .stats div { background: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
 .stats dt { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); }
 .stats dd { margin: 2px 0 0; font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -268,3 +268,16 @@ select#pad-select { width: 100%; }
 .c-edit { background: none; border: 1px solid transparent; color: var(--muted); cursor: pointer; font-size: 11px; padding: 2px 6px; border-radius: 4px; }
 .c-edit:hover { color: var(--text); border-color: var(--line-2); }
 .cheat-list .c-code { overflow-wrap: anywhere; }
+
+.relay-box summary { display: flex; justify-content: space-between; align-items: center; cursor: pointer; list-style: none; }
+.relay-box summary::-webkit-details-marker { display: none; }
+.relay-box summary::after { content: "▾"; color: var(--faint); margin-left: 8px; }
+.relay-box[open] summary::after { content: "▴"; }
+.relay-box { display: block; }
+.relay-box[open] > * + * { margin-top: 10px; }
+.relay-box > div > * + * { margin-top: 10px; }
+.relay-state { margin-left: auto; font-size: 11px; font-weight: 600; color: var(--faint); }
+.relay-state.on { color: var(--good); }
+.relay-box a { color: var(--p1); }
+.relay-box code { font: 10px var(--mono); word-break: break-all; color: var(--muted); }
+#relay-status.good { color: var(--good); } #relay-status.bad { color: var(--bad); }

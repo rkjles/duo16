@@ -67,7 +67,10 @@ The game starts for both players from the host's current moment, including the h
 
 **How it stays in sync.** Both computers run the game and exchange only button presses. Each button press takes effect a few frames later on both machines ("input delay"), which Duo16 sets automatically from your ping. If the games ever drift apart, Duo16 notices within two seconds and copies the host's game over to repair it.
 
-**If the connection fails.** Some home and mobile networks block direct connections. Install a free VPN like [Tailscale](https://tailscale.com) on both computers, then use **Connect by IP address** in the Online tab (the host clicks **Start hosting** and tells the guest the address shown).
+**If the connection fails.** Some networks (apartment or school Wi-Fi, phone hotspots) block direct connections. Two fixes:
+
+- **Relay server (built in, nothing to install for your friend).** The host opens **Online → Relay server**. Choose **Metered Open Relay** and paste the credentials link from a free account at [metered.ca/tools/openrelay](https://www.metered.ca/tools/openrelay/) (20 GB free a month, which is hundreds of hours of Duo16), or choose **Enter a relay server myself** and type the address, username and password from a service like [expressturn.com](https://www.expressturn.com/). Click **Test relay**, then make a new invite code. The relay details travel inside the invite code, so your friend doesn't set anything up. Tick **Always use the relay** if the direct attempt keeps failing. When connected, **Route** shows **Direct** or **Relay**.
+- **Tailscale.** Install [Tailscale](https://tailscale.com) on both computers, then use **Connect by IP address instead**. Allow Duo16 through the Windows firewall on the host.
 
 **Things to know**
 - The guest's in-game progress isn't saved to the guest's own save file during online play; it belongs to the host's game.

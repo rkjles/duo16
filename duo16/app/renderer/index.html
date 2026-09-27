@@ -88,6 +88,32 @@
             </button>
           </div>
           <button id="o-direct" class="linkish">Connect by IP address instead (same network or VPN)</button>
+          <details class="box relay-box" id="relay-box">
+            <summary><span class="step-title">Relay server</span><span class="relay-state" id="relay-state">Off</span></summary>
+            <p class="note">For networks that block direct connections, like apartment or school Wi-Fi. When a direct connection fails, the game goes through the relay instead. Only the host needs this: the relay details are included in the invite code.</p>
+            <label class="field"><span>Relay</span>
+              <select id="relay-mode">
+                <option value="off">Off</option>
+                <option value="metered">Metered Open Relay (paste a link)</option>
+                <option value="manual">Enter a relay server myself</option>
+              </select>
+            </label>
+            <div id="relay-metered" hidden>
+              <p class="note">Sign up free at <a href="https://www.metered.ca/tools/openrelay/" target="_blank">metered.ca/tools/openrelay</a>. In your dashboard, copy the TURN credentials link that looks like <code>https://yourapp.metered.live/api/v1/turn/credentials?apiKey=…</code></p>
+              <label class="field"><span>Credentials link</span><input id="relay-link" type="text" spellcheck="false" placeholder="https://…metered.live/api/v1/turn/credentials?apiKey=…"></label>
+            </div>
+            <div id="relay-manual" hidden>
+              <p class="note">For example from <a href="https://www.expressturn.com/" target="_blank">expressturn.com</a> (free), which shows a server address, username and password in its dashboard.</p>
+              <label class="field"><span>Server address</span><input id="relay-url" type="text" spellcheck="false" placeholder="turn:relay.example.com:3478"></label>
+              <label class="field"><span>Username</span><input id="relay-user" type="text" spellcheck="false"></label>
+              <label class="field"><span>Password</span><input id="relay-pass" type="password" spellcheck="false"></label>
+            </div>
+            <div id="relay-common" hidden>
+              <label class="toggle"><input type="checkbox" id="relay-force"><span>Always use the relay (skip trying a direct connection)</span></label>
+              <div class="row"><button class="btn small" id="relay-save">Save</button><button class="btn small" id="relay-test">Test relay</button></div>
+              <p class="note" id="relay-status"></p>
+            </div>
+          </details>
         </div>
 
         <div class="view" data-view="host-code" hidden>
@@ -155,6 +181,7 @@
             <div><dt>Ping</dt><dd id="st-ping">–</dd></div>
             <div><dt>Input delay</dt><dd id="st-delay">–</dd></div>
             <div><dt>Sync</dt><dd id="st-sync">–</dd></div>
+            <div><dt>Route</dt><dd id="st-route">–</dd></div>
           </dl>
           <div class="box" id="host-settings">
             <div class="step-title">Host settings</div>

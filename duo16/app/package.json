@@ -1,7 +1,7 @@
 {
   "name": "duo16",
   "productName": "Duo16",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "A Super NES emulator built for playing online with a friend: synced cheats, synced rewind, no server needed.",
   "main": "main.js",
   "author": "Duo16",

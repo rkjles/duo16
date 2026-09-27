@@ -311,6 +311,22 @@ function parseCht(text) {
     .filter((c) => c.code && c.code.trim()).map((c) => ({ desc: (c.desc || '').trim().slice(0, 80), code: c.code.trim().slice(0, 400) }));
 }
 
+// ---------------- Relay server details from a provider link (e.g. Metered Open Relay) ----------------
+ipcMain.handle('relay:fetch', async (_e, url) => {
+  url = String(url || '').trim();
+  let u;
+  try { u = new URL(url); } catch (_) { throw new Error('That isn\'t a web link. Copy the whole link from the relay website.'); }
+  if (u.protocol !== 'https:') throw new Error('The link must start with https://');
+  let text;
+  try { text = await httpGet(url); } catch (e) { throw new Error(e.offline ? 'Couldn\'t reach the relay website. Check your internet connection.' : e.message); }
+  if (text === null) throw new Error('The relay website says that link doesn\'t exist. Check the app name and API key.');
+  let data;
+  try { data = JSON.parse(text); } catch (_) { throw new Error('The link didn\'t return relay details. Copy the "credentials" link from your relay dashboard.'); }
+  const list = Array.isArray(data) ? data : Array.isArray(data.iceServers) ? data.iceServers : null;
+  if (!list) throw new Error(data && data.error ? `The relay website says: ${String(data.error).slice(0, 120)}` : 'The link didn\'t return relay details.');
+  return list.slice(0, 12).map((x) => ({ urls: x.urls || x.url, username: x.username, credential: x.credential }));
+});
+
 ipcMain.handle('app:info', () => ({ version: app.getVersion(), platform: process.platform, addresses: localAddresses() }));
 ipcMain.on('app:set-title', (_e, t) => { if (win) win.setTitle(t); });
 
