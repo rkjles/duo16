@@ -5,7 +5,7 @@ A Super NES emulator for Windows and Mac, built for playing online with a friend
 - **Online two-player** with no server: the host sends an invite code, the friend sends back a reply code, and you're connected.
 - **Cheats online**: Game Genie and Pro Action Replay codes switch on at the same frame for both players.
 - **Rewind online**: hold Backspace and both games rewind together, up to 3 minutes.
-- **Fast-forward online**: 2×, 3× or 4× speed, for both players at once.
+- **Fast-forward online**: 2× up to 10× speed, for both players at once.
 - **Host controls**: the host decides whether the guest may use cheats, rewind, fast-forward, pause or reset.
 - Battery saves, 4 save-state slots, keyboard and gamepad support, and `.zip` ROMs.
 - A built-in two-player demo game (Paddle Duel) so you can test online play without a ROM.
@@ -87,10 +87,10 @@ The game starts for both players from the host's current moment, including the h
 
 | Action | Key |
 |---|---|
-| Rewind (hold) | Backspace. Controller: Select + L, or the left trigger on Xbox/PlayStation controllers. Goes back up to 3 minutes and speeds up the longer you hold. |
+| Rewind (hold) | Backspace. Controller: Select + L, or the left trigger on Xbox/PlayStation controllers. Goes back up to 3 minutes. Rewind speed is set in the Controls tab: Automatic (speeds up the longer you hold) or a fixed 2× to 10×. |
 | Pause | P |
 | Save / load state | F5 / F7 (choose slot with 1–4) |
-| Fast-forward | Hold Tab, or click the ⏩ button to switch it on and off. Controller: hold Select + R, or the right trigger on Xbox/PlayStation controllers. Choose 2×, 3× or 4× in the Controls tab. |
+| Fast-forward | Hold Tab, or click the ⏩ button to switch it on and off. Controller: hold Select + R, or the right trigger on Xbox/PlayStation controllers. Choose 2× to 10× in the Controls tab. |
 
 Change any of these in the **Controls** tab. In offline play, a second gamepad controls Player 2.
 
@@ -114,6 +114,8 @@ Xbox and PlayStation controllers work without setup. Other USB controllers, incl
 - **Pro Action Replay**: 8 hex digits, for example `7E0DBE05`, or `7E0DBE:05`
 
 Duo16 detects the type (you can also choose it). A cheat can hold several codes joined with `+`, like `7E0F3109+7E0F3209`.
+
+**Editing a cheat.** Click **Edit** next to a cheat in your list to change its code or description, then click **Save** (or press Enter). Press Escape or click **Cancel** to leave it as it was. Online, the edit reaches both players at the same moment.
 
 **Turning cheats off.** Untick a cheat's checkbox to switch just that one off, or click × to remove it. The **Cheats on / Cheats off** switch above your list turns every cheat off at once and keeps your list for later. Online, both work for both players at the same moment. A cheat that set a number (like lives) leaves it where it was when you switch it off; the game counts normally from there. Cheats are saved per game. Online, any change takes effect at the same frame for both players, and the host can turn guest cheats off.
 

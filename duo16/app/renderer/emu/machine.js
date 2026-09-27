@@ -4,12 +4,14 @@ const REWIND_INTERVAL = 15;      // take a rewind snapshot every 15 emulated fra
 const REWIND_SECONDS = 180;      // 3 minutes
 const REWIND_MAX = Math.ceil(REWIND_SECONDS * 60 / REWIND_INTERVAL);
 const KEYFRAME_EVERY = 20;       // a full snapshot every 5 seconds, compressed differences in between
-const MAX_SPEED = 4;
+const MAX_SPEED = 10;
 
 // While rewind is held it speeds up: [ticks held so far, snapshots to step back per tick]
 // (1 snapshot = 1/4 second of play). Slow at first for precision, then faster.
 const REWIND_RAMP = [[0, 1 / 3], [90, 1 / 2], [180, 1], [360, 2], [600, 4]];
-function rewindRate(ticksHeld) {
+// A fixed rewind speed of N× goes back N seconds per second: N×4 snapshots per 60 ticks.
+function rewindRate(ticksHeld, fixed) {
+  if (fixed > 0) return fixed / 15;
   let r = REWIND_RAMP[0][1];
   for (const [t, v] of REWIND_RAMP) if (ticksHeld >= t) r = v;
   return r;
@@ -32,6 +34,7 @@ class Machine {
     this.speedBy = -1;
     this.rewinding = false;
     this.rewindHeldBy = -1;
+    this.rewindSpeed = 0;
     this.rewindPos = -1;
     this.rewindTimer = 0;
     this.rewindAcc = 0;
@@ -89,6 +92,7 @@ class Machine {
       case 'rewind':
         if (cmd.on && !this.rewinding) {
           this.rewinding = true; this.rewindHeldBy = slot; this.rewindTimer = 0; this.rewindAcc = 1;
+          this.rewindSpeed = Math.max(0, Math.min(MAX_SPEED, cmd.v | 0)); // 0 = automatic
           this.rewindPos = this.history.length; // step happens on first rewind tick
           this.emit(`Player ${slot + 1} is rewinding`);
         } else if (!cmd.on && this.rewinding && (this.rewindHeldBy === slot || slot === 0)) {
@@ -163,7 +167,7 @@ class Machine {
       if (cmds) for (const c of cmds) this.applyCommand(c, s);
     }
     if (this.rewinding) {
-      this.rewindAcc += rewindRate(this.rewindTimer++);
+      this.rewindAcc += rewindRate(this.rewindTimer++, this.rewindSpeed);
       let steps = Math.floor(this.rewindAcc);
       this.rewindAcc -= steps;
       steps = Math.min(steps, this.rewindPos);

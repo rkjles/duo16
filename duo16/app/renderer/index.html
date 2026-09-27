@@ -288,8 +288,12 @@
         <div class="bind-grid" id="bind-hotkeys"></div>
         <div class="row"><button class="btn ghost small" id="bind-reset">Restore defaults</button></div>
         <label class="field inline"><span>Fast-forward speed</span>
-          <select id="ff-speed"><option value="2">2×</option><option value="3">3×</option><option value="4">4×</option></select>
+          <select id="ff-speed"><option value="2">2×</option><option value="3">3×</option><option value="4">4×</option><option value="5">5×</option><option value="6">6×</option><option value="7">7×</option><option value="8">8×</option><option value="9">9×</option><option value="10">10×</option></select>
         </label>
+        <label class="field inline"><span>Rewind speed</span>
+          <select id="rw-speed"><option value="0">Automatic (speeds up as you hold)</option><option value="2">2×</option><option value="3">3×</option><option value="4">4×</option><option value="5">5×</option><option value="6">6×</option><option value="7">7×</option><option value="8">8×</option><option value="9">9×</option><option value="10">10×</option></select>
+        </label>
+        <p class="note">Very high speeds depend on how fast your computer is. If it can't keep up, the game runs as fast as it can. Online, the slower computer sets the pace.</p>
         <label class="field"><span>Volume</span><input id="volume" type="range" min="0" max="1" step="0.05" value="0.8"></label>
         <label class="toggle"><input type="checkbox" id="opt-smooth"><span>Smooth pixels</span></label>
       </section>

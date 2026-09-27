@@ -261,3 +261,10 @@ select#pad-select { width: 100%; }
 .cheat-list.all-off li:not(.empty) { opacity: .45; }
 .pad-shortcuts { display: grid; gap: 6px; }
 .pad-shortcuts b { font-weight: 600; }
+
+.cheat-list li.editing { display: block; border-color: var(--p1); }
+.cheat-edit { display: grid; gap: 8px; }
+.c-actions { display: flex; align-items: center; gap: 2px; }
+.c-edit { background: none; border: 1px solid transparent; color: var(--muted); cursor: pointer; font-size: 11px; padding: 2px 6px; border-radius: 4px; }
+.c-edit:hover { color: var(--text); border-color: var(--line-2); }
+.cheat-list .c-code { overflow-wrap: anywhere; }

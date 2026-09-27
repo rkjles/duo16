@@ -37,10 +37,10 @@ for (let step = 0; step < seconds * 60; step++) {
   if (step === 1100) sA.command({ k: 'cheatsOn', on: false });
   if (step === 1300) { console.log('cheats off -> engine writes:', mA.cheats.ramWrites.length, mB.cheats.ramWrites.length, '| list kept:', mA.cheatList.length, mB.cheatList.length); sB.command({ k: 'cheatsOn', on: true }); }
   if (step === 1450) console.log('cheats back on -> engine writes:', mA.cheats.ramWrites.length, mB.cheats.ramWrites.length);
-  if (step === 1500) sA.command({ k: 'rewind', on: true });
+  if (step === 1500) sA.command({ k: 'rewind', on: true, v: 6 });
   if (step === 1560) sA.command({ k: 'rewind', on: false });
   if (step === 1200 && process.env.CORRUPT) mB.snes.wram[0x1234] ^= 0xFF;
-  if (step === 1700) sB.command({ k: 'speed', v: 3 });
+  if (step === 1700) sB.command({ k: 'speed', v: 8 });
   if (step === 1850) sB.command({ k: 'speed', v: 1 });
   if (step === 2000) sB.command({ k: 'pause', on: true });
   if (step === 2060) sB.command({ k: 'pause', on: false });

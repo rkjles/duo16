@@ -8,7 +8,7 @@ let session = null;
 let link = null;
 const net = { mode: 'offline', role: null, remoteRom: null, autoDelayAt: 0, lastAutoDelay: 0, syncing: false };
 let rom = null;                 // { name, crc, key, demo, data }
-let settings = { keys: {}, padMaps: {}, padChoice: '', volume: 0.8, smooth: false, delayPref: 'auto', ffSpeed: 3, padCombos: true, perms: { guestCheats: true, guestRewind: true, guestPause: true, guestReset: false, guestFast: true } };
+let settings = { keys: {}, padMaps: {}, padChoice: '', volume: 0.8, smooth: false, delayPref: 'auto', ffSpeed: 3, rwSpeed: 0, padCombos: true, perms: { guestCheats: true, guestRewind: true, guestPause: true, guestReset: false, guestFast: true } };
 let currentSlot = 1;
 let ffHeld = false;
 let sramWritable = true, sramLastCrc = 0;
@@ -367,8 +367,64 @@ function commitCheats(list, note) {
   if (!canCheat()) { toast('The host has turned off cheats for guests.'); return; }
   session.command({ k: 'cheats', list, note });
 }
+let cheatEdit = null; // { index, orig, code, desc, kind } while a cheat is being edited
+function cheatKindLabel(code, kind) {
+  try { const ps = parseCheatCodes(code, kind); const t = new Set(ps.map((p) => p.type)); return t.size > 1 ? 'MIX' : (ps[0].type === 'gg' ? 'GG' : 'PAR'); } catch (_) { return '?'; }
+}
+function startCheatEdit(i) {
+  if (!canCheat()) { toast('The host has turned off cheats for guests.'); return; }
+  const c = machine.cheatList[i];
+  cheatEdit = { index: i, orig: c.code, code: c.code, desc: c.desc || '', kind: c.kind || 'auto' };
+  renderCheats();
+  const el = document.getElementById('edit-code'); if (el) { el.focus(); el.select(); }
+}
+function saveCheatEdit() {
+  const e = cheatEdit; if (!e) return;
+  const c = machine.cheatList[e.index];
+  if (!c || c.code !== e.orig) { toast('That cheat was changed or removed by the other player.'); cheatEdit = null; renderCheats(); return; }
+  let code;
+  try { code = parseCheatCodes(e.code, e.kind).map((p) => p.text).join('+'); }
+  catch (err) { toast(err.message, 'bad'); return; }
+  const desc = e.desc.trim().slice(0, 80);
+  cheatEdit = null;
+  if (code === c.code && desc === (c.desc || '') && e.kind === (c.kind || 'auto')) { renderCheats(); return; }
+  const nl = machine.cheatList.map((x, j) => j === e.index ? { ...x, code, desc, kind: e.kind } : x);
+  commitCheats(nl, `edited ${desc || code}`);
+  renderCheats();
+}
+function renderCheatEditor(li, c) {
+  const e = cheatEdit;
+  li.className = 'editing';
+  li.innerHTML = `
+    <form class="cheat-edit" autocomplete="off">
+      <label class="field"><span>Code</span><input id="edit-code" class="mono" spellcheck="false"></label>
+      <label class="field"><span>What it does</span><input id="edit-desc" spellcheck="false"></label>
+      <div class="row">
+        <select id="edit-kind" aria-label="Code type"><option value="auto">Detect type</option><option value="gg">Game Genie</option><option value="par">Pro Action Replay</option></select>
+        <button class="btn primary small" type="submit">Save</button>
+        <button class="btn ghost small" type="button" id="edit-cancel">Cancel</button>
+      </div>
+      <div class="decode" id="edit-decode"></div>
+    </form>`;
+  const code = li.querySelector('#edit-code'), desc = li.querySelector('#edit-desc'), kind = li.querySelector('#edit-kind'), dec = li.querySelector('#edit-decode');
+  code.value = e.code; desc.value = e.desc; kind.value = e.kind;
+  const check = () => {
+    try { const n = parseCheatCodes(code.value, kind.value).length; dec.textContent = n > 1 ? `${n} codes` : 'Code looks good'; dec.className = 'decode'; }
+    catch (err) { dec.textContent = err.message; dec.className = 'decode bad'; }
+  };
+  code.oninput = () => { e.code = code.value; check(); };
+  desc.oninput = () => { e.desc = desc.value; };
+  kind.onchange = () => { e.kind = kind.value; check(); };
+  li.querySelector('form').onsubmit = (ev) => { ev.preventDefault(); saveCheatEdit(); };
+  li.querySelector('#edit-cancel').onclick = () => { cheatEdit = null; renderCheats(); };
+  li.onkeydown = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); cheatEdit = null; renderCheats(); } };
+  check();
+}
 function renderCheats() {
-  const ul = $('cheat-list'); ul.innerHTML = '';
+  const ul = $('cheat-list');
+  // keep typing focus if the list redraws while someone is editing
+  const focusedId = document.activeElement && ul.contains(document.activeElement) ? document.activeElement.id : null;
+  ul.innerHTML = '';
   const on = machine.cheatsOn !== false;
   $('cheats-master').setAttribute('aria-checked', String(on));
   $('cheats-master-text').textContent = on ? 'Cheats on' : 'Cheats off';
@@ -376,21 +432,26 @@ function renderCheats() {
   ul.classList.toggle('all-off', !on);
   const list = machine.cheatList;
   $('cheat-lock').hidden = canCheat();
+  if (cheatEdit && (!list[cheatEdit.index] || list[cheatEdit.index].code !== cheatEdit.orig)) {
+    cheatEdit = null; toast('The cheat you were editing was changed or removed by the other player.');
+  }
   if (!list.length) { const li = document.createElement('li'); li.className = 'empty'; li.textContent = 'No cheats yet'; ul.appendChild(li); return; }
   list.forEach((c, i) => {
     const li = document.createElement('li');
-    const kind = (() => { try { const ps = parseCheatCodes(c.code, c.kind); const t = new Set(ps.map((p) => p.type)); return t.size > 1 ? 'MIX' : (ps[0].type === 'gg' ? 'GG' : 'PAR'); } catch (_) { return '?'; } })();
-    li.innerHTML = `<input type="checkbox" ${c.enabled ? 'checked' : ''} aria-label="Enabled"><div style="min-width:0"><div><span class="c-code"></span><span class="c-kind">${kind}</span></div><div class="c-desc"></div></div><button class="x" title="Remove" aria-label="Remove">×</button>`;
-    li.querySelector('.c-code').textContent = c.code;
+    if (cheatEdit && cheatEdit.index === i) { renderCheatEditor(li, c); ul.appendChild(li); return; }
+    li.innerHTML = `<input type="checkbox" ${c.enabled ? 'checked' : ''} aria-label="Enabled"><div style="min-width:0"><div><span class="c-code"></span><span class="c-kind">${cheatKindLabel(c.code, c.kind)}</span></div><div class="c-desc"></div></div><div class="c-actions"><button class="c-edit" title="Edit" aria-label="Edit">Edit</button><button class="x" title="Remove" aria-label="Remove">×</button></div>`;
+    li.querySelector('.c-code').textContent = c.code.replace(/\+/g, ' + ');
     li.querySelector('.c-desc').textContent = c.desc || 'No description';
     li.querySelector('input').onchange = (e) => {
       const nl = machine.cheatList.map((x, j) => j === i ? { ...x, enabled: e.target.checked } : x);
       commitCheats(nl, `${e.target.checked ? 'turned on' : 'turned off'} ${c.desc || c.code}`);
       e.target.checked = c.enabled; // UI updates when the change takes effect
     };
+    li.querySelector('.c-edit').onclick = () => startCheatEdit(i);
     li.querySelector('.x').onclick = () => commitCheats(machine.cheatList.filter((_, j) => j !== i), `removed ${c.desc || c.code}`);
     ul.appendChild(li);
   });
+  if (focusedId) { const el = document.getElementById(focusedId); if (el) el.focus(); }
 }
 function describeCode() {
   const el = $('cheat-decode'); const v = $('cheat-code').value.trim();
@@ -512,7 +573,7 @@ input.onHotkey = (id, pressed) => {
       if (pressed && isGuest() && !machine.settings.guestRewind) { toast('The host has turned off rewind for guests.'); return; }
       if (!pressed && !rewindSent) return;
       rewindSent = pressed;
-      session.command({ k: 'rewind', on: pressed });
+      session.command({ k: 'rewind', on: pressed, v: settings.rwSpeed || 0 });
       if (pressed) audio.flush();
       break;
     case 'pause': if (pressed) togglePause(); break;
@@ -562,7 +623,8 @@ function tick() {
   const period = 1000 / (machine.snes.cart.pal ? 50.007 : 60.0988);
   session.maintain();
   let ran = 0;
-  while (acc >= period && ran < 3) {
+  const maxCatchUp = machine.speed > 4 ? 1 : 3;
+  while (acc >= period && ran < maxCatchUp) {
     if (!session.step()) { acc = Math.min(acc, period); if (!waitingSince) waitingSince = t; break; }
     waitingSince = 0;
     acc -= period; ran++;
@@ -621,7 +683,7 @@ function updateOverlay() {
   if (net.syncing) { kind = 'sync'; text = net.role === 'guest' ? 'Syncing with the host…' : 'Syncing with your friend…'; }
   else if (machine.rewinding) {
     const back = Math.round(machine.rewindSecondsBack());
-    kind = 'rewind'; text = `Rewinding${machine.rewindHeldBy >= 0 && session.role !== 'solo' ? ` · Player ${machine.rewindHeldBy + 1}` : ''} · ${Math.floor(back / 60)}:${String(back % 60).padStart(2, '0')} back`;
+    kind = 'rewind'; text = `Rewinding${machine.rewindSpeed > 0 ? ` ${machine.rewindSpeed}×` : ''}${machine.rewindHeldBy >= 0 && session.role !== 'solo' ? ` · Player ${machine.rewindHeldBy + 1}` : ''} · ${Math.floor(back / 60)}:${String(back % 60).padStart(2, '0')} back`;
   }
   else if (machine.paused && rom) { kind = 'pause'; text = 'Paused'; }
   else if (session && session.role !== 'solo' && waitingSince && performance.now() - waitingSince > 400) { kind = 'wait'; text = `Waiting for Player ${net.role === 'host' ? 2 : 1}…`; }
@@ -673,6 +735,7 @@ function bind() {
   $('o-leave').onclick = leaveSession;
   $('rom-mismatch-open').onclick = openRomDialog;
   for (const id of ['perm-cheats', 'perm-rewind', 'perm-pause', 'perm-reset', 'perm-fast']) $(id).onchange = applyHostSettings;
+  $('rw-speed').onchange = (e) => { settings.rwSpeed = +e.target.value; saveSettings(); };
   $('ff-speed').onchange = (e) => { settings.ffSpeed = +e.target.value; saveSettings(); if (machine.speed > 1) session.command({ k: 'speed', v: settings.ffSpeed }); };
   $('delay-select').onchange = (e) => {
     settings.delayPref = e.target.value; saveSettings();
@@ -825,6 +888,7 @@ async function init() {
   $('perm-cheats').checked = settings.perms.guestCheats; $('perm-rewind').checked = settings.perms.guestRewind;
   $('perm-pause').checked = settings.perms.guestPause; $('perm-reset').checked = settings.perms.guestReset; $('perm-fast').checked = settings.perms.guestFast !== false;
   $('ff-speed').value = String(settings.ffSpeed || 3);
+  $('rw-speed').value = String(settings.rwSpeed || 0);
   bind(); renderBindings(); renderHints(); refreshSlots(); updatePadStatus(); renderCheats();
   showView('idle');
   const recents = await window.duo.recentRoms();

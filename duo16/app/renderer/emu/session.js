@@ -1,7 +1,7 @@
 // ===== Lockstep session: keeps every player's Machine running the same frames with the same inputs =====
 // Transport-agnostic. A link is { sendFast(obj), sendReliable(objOrBytes), close() } and calls
 // session.onFast(obj) / session.onReliable(objOrBytes) when data arrives.
-const NET_VERSION = 3;
+const NET_VERSION = 4;
 
 class Session {
   constructor(machine, opts) {
@@ -207,8 +207,9 @@ function sanitizeCmds(c) {
   const out = [];
   for (const x of c.slice(0, 8)) {
     if (!x || typeof x !== 'object') continue;
-    if (x.k === 'rewind' || x.k === 'pause' || x.k === 'cheatsOn') out.push({ k: x.k, on: !!x.on });
-    else if (x.k === 'speed') out.push({ k: 'speed', v: Math.max(1, Math.min(4, x.v | 0)) });
+    if (x.k === 'rewind') out.push({ k: 'rewind', on: !!x.on, v: Math.max(0, Math.min(10, x.v | 0)) });
+    else if (x.k === 'pause' || x.k === 'cheatsOn') out.push({ k: x.k, on: !!x.on });
+    else if (x.k === 'speed') out.push({ k: 'speed', v: Math.max(1, Math.min(10, x.v | 0)) });
     else if (x.k === 'reset') out.push({ k: 'reset' });
     else if (x.k === 'cheats' && Array.isArray(x.list)) {
       out.push({
